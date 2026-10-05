@@ -77,6 +77,7 @@ export default function OrderTrackingPage() {
   const [order, setOrder] = useState<OrderRecord | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [cancelling, setCancelling] = useState<boolean>(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   const fetchOrder = useCallback(async () => {
     try {
@@ -137,6 +138,7 @@ export default function OrderTrackingPage() {
   const handleCancelOrder = async () => {
     if (!order || order.status !== "placed") return;
     setCancelling(true);
+    setCancelError(null);
     try {
       const res = await fetch(`/api/orders/${order.id}/status`, {
         method: "PATCH",
@@ -150,7 +152,12 @@ export default function OrderTrackingPage() {
         const data = await res.json();
         setOrder(data.order);
         notifyRealtimeUpdate("order_updated", data.order);
+      } else {
+        const data = await res.json();
+        setCancelError(data.error || "Unable to cancel order. Please refresh and try again.");
       }
+    } catch {
+      setCancelError("Connection failed. Please try again.");
     } finally {
       setCancelling(false);
     }
@@ -165,6 +172,7 @@ export default function OrderTrackingPage() {
       <GlobalHeader />
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-3 sm:px-6 py-6 space-y-6">
+        {cancelError && <p role="alert" className="p-3 bg-status-errorSoft text-status-error rounded-xs">{cancelError}</p>}
         <div className="flex items-center justify-between flex-wrap gap-2">
           <Link
             href={`/order/${DEFAULT_OUTLET_SLUG}`}

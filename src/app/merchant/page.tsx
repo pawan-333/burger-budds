@@ -70,6 +70,7 @@ export default function MerchantAppPage() {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [connected, setConnected] = useState<boolean>(true);
+  const [orderActionError, setOrderActionError] = useState<string | null>(null);
 
   // Audio Alarm State (Looping kitchen alarm when unaccepted 'placed' orders exist)
   const [audioUnlocked, setAudioUnlocked] = useState<boolean>(false);
@@ -230,21 +231,29 @@ export default function MerchantAppPage() {
     status: OrderStatus,
     extra?: { prepTimeMin?: number; rejectReason?: string }
   ) => {
-    const res = await fetch(`/api/orders/${orderId}/status`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        status,
-        actor: staffRole,
-        prepTimeMin: extra?.prepTimeMin,
-        rejectReason: extra?.rejectReason,
-      }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      await fetchMerchantData();
-      notifyRealtimeUpdate("order_updated", data.order);
-      setRejectingOrderId(null);
+    setOrderActionError(null);
+    try {
+      const res = await fetch(`/api/orders/${orderId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status,
+          actor: "merchant",
+          prepTimeMin: extra?.prepTimeMin,
+          rejectReason: extra?.rejectReason,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        await fetchMerchantData();
+        notifyRealtimeUpdate("order_updated", data.order);
+        setRejectingOrderId(null);
+      } else {
+        const data = await res.json();
+        setOrderActionError(data.error || "Unable to update order. Please refresh and try again.");
+      }
+    } catch {
+      setOrderActionError("Connection failed. Please try again.");
     }
   };
 
@@ -626,6 +635,7 @@ export default function MerchantAppPage() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-6 print:hidden">
+        {orderActionError && <p role="alert" className="mb-4 p-3 bg-status-errorSoft text-status-error rounded-xs">{orderActionError}</p>}
         {/* SCREEN 1: LIVE ORDERS */}
         {activeScreen === "orders" && (
           <div className="space-y-5">

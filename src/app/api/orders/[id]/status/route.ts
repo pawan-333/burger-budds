@@ -31,13 +31,22 @@ export async function PATCH(
         if (error) return NextResponse.json({ error: "Invalid order status change." }, { status: 400 });
         return NextResponse.json({ order: publicOrder(data) });
       }
+      // A guest order remains owned by its cookie even if the browser also
+      // has an older authenticated session.
+      const guestHash = actor === "customer" && nextStatus === "cancelled"
+        ? await getGuestOrderHash() : null;
+      if (guestHash) {
+        const { error } = await sb.rpc("cancel_guest_order", { target_order_id: orderId, session_hash: guestHash });
+        if (!error) {
+          const { data: fullOrder, error: loadError } = await sb.from("orders").select("*, items:order_items(*), events:order_events(*)").eq("id", orderId).single();
+          if (loadError) return NextResponse.json({ error: "Order cancelled. Please refresh to see its status." }, { status: 500 });
+          return NextResponse.json({ order: publicOrder(fullOrder) });
+        }
+      }
       const user = await getVerifiedUser();
       if (!user) {
-        const guestHash = await getGuestOrderHash();
         if (!guestHash || nextStatus !== "cancelled") return NextResponse.json({ error: "Order status change is not allowed." }, { status: 403 });
-        const { data, error } = await sb.rpc("cancel_guest_order", { target_order_id: orderId, session_hash: guestHash });
-        if (error) return NextResponse.json({ error: "This order cannot be cancelled." }, { status: 400 });
-        return NextResponse.json({ order: data });
+        return NextResponse.json({ error: "Order can only be cancelled before the restaurant accepts it, from the browser that placed it." }, { status: 400 });
       }
       const session = (await getSupabaseServerClient())!;
       const { data: visible } = await session.from("orders").select("id").eq("id", orderId).maybeSingle();

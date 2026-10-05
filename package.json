@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test tests/pricing.test.cjs",
+    "test": "node --test tests/pricing.test.cjs tests/order-status.test.cjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
