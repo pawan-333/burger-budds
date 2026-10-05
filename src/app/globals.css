@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-size: 14px;
+    scroll-behavior: smooth;
+  }
+
+  @media (min-width: 768px) {
+    html {
+      font-size: 15px;
+    }
+  }
+
+  body {
+    @apply bg-surface-page text-text-primary font-sans antialiased;
+  }
+
+  /* Visible keyboard focus ring per PLAN.md section 3 */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-text-primary ring-offset-2;
+  }
+}
+
+/* Dialog backdrop styling per modern-web-guidance */
+dialog::backdrop {
+  background-color: rgba(17, 20, 26, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+/* Hide horizontal scrollbar on filter chips while keeping scroll functional */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
