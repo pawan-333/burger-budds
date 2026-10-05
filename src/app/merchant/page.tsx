@@ -505,15 +505,14 @@ export default function MerchantAppPage() {
             )}
 
             {/* Simulate Incoming Order Button for Quick Testing */}
-            <button
+            {process.env.NODE_ENV !== "production" && !getSupabaseBrowserClient() && <button
               type="button"
               onClick={handleSimulateNewOrder}
-              hidden={process.env.NODE_ENV === "production" || !!getSupabaseBrowserClient()}
               className="min-h-[40px] px-3 py-1.5 rounded-xs bg-surface-base text-text-primary hover:bg-brand-primary font-extrabold text-xs inline-flex items-center gap-1.5 shadow-1"
             >
               <BellRing className="w-3.5 h-3.5 text-status-error" />
               <span>+ Simulate New Order</span>
-            </button>
+            </button>}
 
             {/* Role Selector */}
             <select
