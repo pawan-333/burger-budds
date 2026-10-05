@@ -159,14 +159,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       const rawAddresses = localStorage.getItem(STORAGE_KEYS.ADDRESSES);
-      if (rawAddresses && !getSupabaseBrowserClient()) {
+      if (rawAddresses) {
         const list = JSON.parse(rawAddresses);
-        if (Array.isArray(list)) setSavedAddresses(list);
+        if (Array.isArray(list)) setSavedAddresses(getSupabaseBrowserClient() ? list.filter((address) => address.user_id === "guest-user") : list);
       }
 
       const rawSelectedAddr = localStorage.getItem(STORAGE_KEYS.SELECTED_ADDR);
-      if (rawSelectedAddr && !getSupabaseBrowserClient()) {
-        setSelectedAddress(JSON.parse(rawSelectedAddr));
+      if (rawSelectedAddr) {
+        const address = JSON.parse(rawSelectedAddr);
+        if (!getSupabaseBrowserClient() || address.user_id === "guest-user") setSelectedAddress(address);
       }
     } catch {
       // Ignore storage errors
@@ -181,7 +182,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const syncUser = async () => {
       const { data } = await sb.auth.getUser();
       if (!active) return;
-      if (!data.user) { setUser(null); setSavedAddresses([]); setSelectedAddress((previous) => previous?.user_id === "guest-user" ? previous : null); return; }
+      if (!data.user) { setUser(null); setSavedAddresses((previous) => previous.filter((address) => address.user_id === "guest-user")); setSelectedAddress((previous) => previous?.user_id === "guest-user" ? previous : null); return; }
       const { data: profile } = await sb.from("profiles").select("*").eq("id", data.user.id).maybeSingle();
       if (active) setUser({
         id: data.user.id,

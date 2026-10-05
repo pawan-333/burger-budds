@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient, getVerifiedUser } from "@/lib/supabase/server";
+import { PUBLIC_MERCHANT_ACCESS } from "@/lib/site-access";
 import {
   getMenuBundle,
   getSupabaseAdminClient,
@@ -18,11 +19,13 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const session = await getSupabaseServerClient();
+    const session = PUBLIC_MERCHANT_ACCESS ? getSupabaseAdminClient() : await getSupabaseServerClient();
     if (session) {
       const user = await getVerifiedUser();
-      if (!user) return NextResponse.json({ error: "Please log in." }, { status: 401 });
-      const { data: memberships } = await session.from("staff").select("outlet_id").eq("user_id", user.id);
+      if (!user && !PUBLIC_MERCHANT_ACCESS) return NextResponse.json({ error: "Please log in." }, { status: 401 });
+      const { data: memberships } = PUBLIC_MERCHANT_ACCESS
+        ? { data: [{ outlet_id: (await getMenuBundle()).outlet.id }] }
+        : await session.from("staff").select("outlet_id").eq("user_id", user!.id);
       if (!memberships?.length) return NextResponse.json({ error: "Staff access required." }, { status: 403 });
       const outletIds = memberships.map((membership) => membership.outlet_id);
       if (body.action === "update_item" && body.itemId) {

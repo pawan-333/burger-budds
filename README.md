@@ -26,4 +26,8 @@ Keep this application's changes scoped to these resources. Do not modify the Paw
 5. Add the domain in Vercel and use the exact DNS records shown there. Preserve unrelated DNS records, including mail records.
 6. Open the outlet only after the above checks pass and business details are confirmed.
 
-The owner email configured by migration 002 is `pavankotiya142@gmail.com`. Owner access is assigned on account creation. Customer order totals are computed on the server, and database writes use atomic functions. Online payments, wallet spending, and phone OTP are not enabled for this COD launch.
+Customer checkout currently uses guest sessions and requests no email or OTP. Guest tracking is scoped to the browser's opaque cookie. Phone numbers and delivery details remain necessary to fulfil COD orders.
+
+At the owner's explicit request, the live merchant dashboard is temporarily public, including order/customer details and menu/status controls. `PUBLIC_MERCHANT_ACCESS` in `src/lib/site-access.ts` controls this mode across the UI and APIs. Set it to false and redeploy to restore verified staff access. Migration 005's public-merchant RPC is callable only by the server service role.
+
+The owner email configured by migration 002 is `pavankotiya142@gmail.com`. Owner access is assigned on account creation when staff authentication is restored. Customer order totals are computed on the server, and database writes use atomic functions. Online payments, wallet spending, email OTP, and phone OTP are paused for this COD launch.

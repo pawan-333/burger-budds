@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
+import { getGuestOrderHash, publicOrder } from "@/lib/guest-session";
+import { PUBLIC_MERCHANT_ACCESS } from "@/lib/site-access";
 import { getSupabaseServerClient, getVerifiedUser } from "@/lib/supabase/server";
 import {
   computeDistanceKm,
@@ -26,20 +28,27 @@ export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId");
   const session = await getSupabaseServerClient();
   if (session) {
+    if (PUBLIC_MERCHANT_ACCESS && req.nextUrl.searchParams.get("merchant") === "1") {
+      const { data, error } = await getSupabaseAdminClient()!.from("orders").select("*, items:order_items(*), events:order_events(*)").order("placed_at", { ascending: false });
+      if (error) return NextResponse.json({ error: "Unable to load orders." }, { status: 500 });
+      return NextResponse.json({ orders: (data || []).map(publicOrder) });
+    }
     const user = await getVerifiedUser();
-    if (!user) return NextResponse.json({ error: "Please log in." }, { status: 401 });
-    let query = session.from("orders").select("*, items:order_items(*), events:order_events(*)").order("placed_at", { ascending: false });
+    const guestHash = !user ? await getGuestOrderHash() : null;
+    if (!user && !guestHash) return orderId ? NextResponse.json({ error: "Order not found" }, { status: 404 }) : NextResponse.json({ orders: [] });
+    let query = (user ? session : getSupabaseAdminClient()!).from("orders").select("*, items:order_items(*), events:order_events(*)").order("placed_at", { ascending: false });
+    if (!user) query = query.eq("guest_session_hash", guestHash);
     if (orderId) {
       if (orderId.startsWith("BB-")) query = query.eq("order_no", orderId);
       else query = query.eq("id", orderId);
     }
-    if (userId) query = query.eq("user_id", user.id);
+    if (userId && user) query = query.eq("user_id", user.id);
     const { data, error } = await query;
     if (error) return NextResponse.json({ error: "Unable to load orders." }, { status: 500 });
     if (orderId) return data?.[0]
-      ? NextResponse.json({ order: data[0] })
+      ? NextResponse.json({ order: publicOrder(data[0]) })
       : NextResponse.json({ error: "Order not found" }, { status: 404 });
-    return NextResponse.json({ orders: data || [] });
+    return NextResponse.json({ orders: (data || []).map(publicOrder) });
   }
   if (process.env.NODE_ENV === "production") return NextResponse.json({ error: "Ordering service is not configured." }, { status: 503 });
   const store = readLocalStore();
@@ -77,7 +86,7 @@ export async function POST(req: NextRequest) {
     const idempotencyKey: string | undefined = body.idempotencyKey;
     const sb = getSupabaseAdminClient();
     const verifiedUser = sb ? await getVerifiedUser() : null;
-    if (sb && !verifiedUser) return NextResponse.json({ error: "Please log in before placing an order." }, { status: 401 });
+    const guestHash = sb && !verifiedUser ? await getGuestOrderHash(true) : null;
     if (!sb && process.env.NODE_ENV === "production") return NextResponse.json({ error: "Ordering service is not configured." }, { status: 503 });
     if (idempotencyKey && (typeof idempotencyKey !== "string" || idempotencyKey.length > 200)) return NextResponse.json({ error: "Invalid order request key." }, { status: 400 });
     const store = sb ? { ...getInitialStore(), orders: [], idempotencyKeys: {} as Record<string, string> } : readLocalStore();
@@ -249,7 +258,7 @@ export async function POST(req: NextRequest) {
     const newOrder: OrderRecord = {
       id: orderId,
       order_no: orderNo,
-      user_id: verifiedUser?.id || body.userId || "guest-user",
+      user_id: verifiedUser?.id || (sb ? null : "guest-user"),
       customer_name: body.customerName || "Burger Budds Customer",
       customer_phone:
         verifiedUser?.phone || body.customerPhone || address?.phone || "",
@@ -293,11 +302,11 @@ export async function POST(req: NextRequest) {
 
     if (sb) {
       const { data, error } = await sb.rpc("create_order_atomic", {
-        order_payload: newOrder,
+        order_payload: { ...newOrder, guest_session_hash: guestHash },
         request_key: idempotencyKey || randomUUID(),
       });
       if (error) throw error;
-      return NextResponse.json({ order: data }, { status: 201 });
+      return NextResponse.json({ order: publicOrder(data) }, { status: 201 });
     }
     store.orders.unshift(newOrder);
     if (idempotencyKey) {

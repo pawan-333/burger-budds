@@ -149,19 +149,13 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (!user) {
-      openAuthModal(() => {
-        // User logged in via OTP modal
-      });
-      return;
-    }
     if (orderType === "takeaway" && !/^[6-9]\d{9}$/.test(pickupPhone)) {
       setOrderError("Please enter your 10-digit mobile number for pickup updates."); return;
     }
 
     setPlacingOrder(true);
     try {
-      const signature = JSON.stringify({ user: user.id, cartItems, selectedAddress, orderType, couponCode, specialInstructions, pickupPhone });
+      const signature = JSON.stringify({ user: user?.id || "guest", cartItems, selectedAddress, orderType, couponCode, specialInstructions, pickupPhone });
       if (requestIdentity.current?.signature !== signature) requestIdentity.current = { signature, key: crypto.randomUUID() };
       const idempotencyKey = requestIdentity.current.key;
       const res = await fetch("/api/orders", {
@@ -170,14 +164,13 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           idempotencyKey,
           outletSlug: DEFAULT_OUTLET_SLUG,
-          userId: user.id,
-          customerName: user.name,
+          customerName: user?.name || "Guest Customer",
           customerPhone: orderType === "takeaway" ? pickupPhone : selectedAddress?.phone,
           orderType,
           address: orderType === "delivery" ? selectedAddress : null,
           couponCode,
           useWallet,
-          walletBalance: user.wallet_balance,
+          walletBalance: 0,
           paymentMethod,
           specialInstructions,
           marketingOptIn,
@@ -825,7 +818,7 @@ export default function CheckoutPage() {
                                     ? "Cash on Delivery"
                                     : "Online Pay"
                                 })`
-                              : `Login & Pay ₹${grandTotal}`}
+                              : `Place COD Order · ₹${grandTotal}`}
                           </span>
                         </>
                       )}
@@ -863,7 +856,7 @@ export default function CheckoutPage() {
                   ? "Placing Order..."
                   : user
                   ? `Pay ₹${grandTotal} →`
-                  : `Login & Pay ₹${grandTotal} →`}
+                  : `Place COD Order →`}
               </span>
             </button>
           )}

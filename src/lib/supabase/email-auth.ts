@@ -7,7 +7,19 @@ export async function sendEmailOtp(email: string, name?: string) {
     email: email.trim().toLowerCase(),
     options: { data: { name: name?.trim() || "" } },
   });
-  return error ? { ok: false, message: error.message } : { ok: true, message: "Check your email for the verification code." };
+  if (error) {
+    const emailLimitReached = error.code === "over_email_send_rate_limit" || /email rate limit/i.test(error.message);
+    const requestLimitReached = error.status === 429;
+    return {
+      ok: false,
+      message: emailLimitReached
+        ? "Email sending is temporarily unavailable. If a code already arrived, use it; otherwise try again later."
+        : requestLimitReached
+          ? "Too many login requests. Please wait before requesting another code."
+          : error.message,
+    };
+  }
+  return { ok: true, message: "Check your email for the verification code." };
 }
 
 export async function verifyEmailOtp(email: string, token: string) {

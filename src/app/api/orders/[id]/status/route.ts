@@ -7,6 +7,8 @@ import {
 } from "@/lib/server-db";
 import { OrderStatus } from "@/types/database";
 import { getSupabaseServerClient, getVerifiedUser } from "@/lib/supabase/server";
+import { getGuestOrderHash, publicOrder } from "@/lib/guest-session";
+import { PUBLIC_MERCHANT_ACCESS } from "@/lib/site-access";
 
 export async function PATCH(
   req: NextRequest,
@@ -21,8 +23,22 @@ export async function PATCH(
     const rejectReason: string | undefined = body.rejectReason;
     const sb = getSupabaseAdminClient();
     if (sb) {
+      if (PUBLIC_MERCHANT_ACCESS && actor === "merchant") {
+        const { data, error } = await sb.rpc("transition_public_order", {
+          target_order_id: orderId, acting_user: null, next_status: nextStatus,
+          preparation_minutes: prepTimeMin || 20, rejection_reason: rejectReason || null,
+        });
+        if (error) return NextResponse.json({ error: "Invalid order status change." }, { status: 400 });
+        return NextResponse.json({ order: publicOrder(data) });
+      }
       const user = await getVerifiedUser();
-      if (!user) return NextResponse.json({ error: "Please log in." }, { status: 401 });
+      if (!user) {
+        const guestHash = await getGuestOrderHash();
+        if (!guestHash || nextStatus !== "cancelled") return NextResponse.json({ error: "Order status change is not allowed." }, { status: 403 });
+        const { data, error } = await sb.rpc("cancel_guest_order", { target_order_id: orderId, session_hash: guestHash });
+        if (error) return NextResponse.json({ error: "This order cannot be cancelled." }, { status: 400 });
+        return NextResponse.json({ order: data });
+      }
       const session = (await getSupabaseServerClient())!;
       const { data: visible } = await session.from("orders").select("id").eq("id", orderId).maybeSingle();
       if (!visible) return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -31,7 +47,7 @@ export async function PATCH(
         preparation_minutes: prepTimeMin || 20, rejection_reason: rejectReason || null,
       });
       if (error) return NextResponse.json({ error: "Order status change was not allowed. Please refresh and try again." }, { status: 400 });
-      return NextResponse.json({ order: data });
+      return NextResponse.json({ order: publicOrder(data) });
     }
     if (process.env.NODE_ENV === "production") return NextResponse.json({ error: "Ordering service is not configured." }, { status: 503 });
 

@@ -226,7 +226,7 @@ export function GlobalHeader({ totalMenuItems = 10 }: GlobalHeaderProps) {
           </Link>
 
           {/* Login / Profile */}
-          <button
+          {user && <button
             type="button"
             onClick={() => (user ? openProfile("overview") : openAuthModal())}
             className="min-h-[44px] px-2.5 sm:px-3 py-2 rounded-xs inline-flex items-center gap-1.5 text-sm font-bold text-text-onSecondary hover:bg-brand-secondaryDark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary transition duration-fast"
@@ -236,7 +236,7 @@ export function GlobalHeader({ totalMenuItems = 10 }: GlobalHeaderProps) {
             <span className="hidden sm:inline max-w-[110px] truncate">
               {user ? user.name.split(" ")[0] : "Login"}
             </span>
-          </button>
+          </button>}
 
           {/* Cart Button (Yellow with Dark Text & Badge) */}
           <Link

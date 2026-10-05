@@ -38,6 +38,7 @@ import { DEFAULT_OUTLET_SLUG, SEED_OUTLET } from "@/lib/seed-data";
 import { useApp } from "@/context/AppContext";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { MerchantLogin } from "@/components/merchant/MerchantLogin";
+import { PUBLIC_MERCHANT_ACCESS } from "@/lib/site-access";
 
 export default function MerchantAppPage() {
   const { notifyRealtimeUpdate } = useApp();
@@ -46,6 +47,7 @@ export default function MerchantAppPage() {
   const [staffRole, setStaffRole] = useState<StaffRole>("owner");
   const [staffAccess, setStaffAccess] = useState<"checking" | "login" | "denied" | "allowed">("checking");
   const verifyStaffAccess = useCallback(async () => {
+    if (PUBLIC_MERCHANT_ACCESS) { setStaffAccess("allowed"); return; }
     const sb = getSupabaseBrowserClient();
     if (!sb) { setStaffAccess(process.env.NODE_ENV === "production" ? "denied" : "allowed"); return; }
     const { data } = await sb.auth.getUser();
@@ -137,7 +139,7 @@ export default function MerchantAppPage() {
     try {
       const [menuRes, ordersRes] = await Promise.all([
         fetch(`/api/menu?outlet=${DEFAULT_OUTLET_SLUG}`, { cache: "no-store" }),
-        fetch("/api/orders", { cache: "no-store" }),
+        fetch("/api/orders?merchant=1", { cache: "no-store" }),
       ]);
       if (menuRes.ok) {
         const menuData = await menuRes.json();
