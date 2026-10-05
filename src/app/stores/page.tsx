@@ -1,4 +1,7 @@
 import React from "react";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata = pageMetadata("Burger Budds Gwalior | Store & Online Ordering", "Find Burger Budds in Vinay Nagar, Gwalior. View outlet information and explore burgers and fast food for online delivery or takeaway.", "/stores");
 import Link from "next/link";
 import { Clock, MapPin, Phone, Utensils } from "lucide-react";
 import { GlobalHeader } from "@/components/layout/GlobalHeader";

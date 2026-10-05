@@ -1,88 +1,44 @@
 import React from "react";
-import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { getMenuBundle } from "@/lib/server-db";
 import { OrderMenuClient } from "@/components/menu/OrderMenuClient";
+import { pageMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}): Promise<Metadata> {
-  const { outlet } = await getMenuBundle((await params).slug);
-  return {
-    title: `${outlet.name} | Order Online — Burger Budds`,
-    description: `Order hot & crispy smash burgers, peri-peri crinkle fries, and thick shakes online from ${outlet.name}. Use code FLAT129 for instant savings!`,
-    openGraph: {
-      title: `${outlet.name} — Online Delivery & Takeaway`,
-      description: `Freshly smashed burgers delivered in ${outlet.prep_time_min + 10} mins across ${outlet.area}.`,
-      type: "website",
-    },
-  };
+async function getOutletMenu(slug: string) {
+  try {
+    const bundle = await getMenuBundle(slug);
+    // The development data layer can fall back to the default outlet.
+    if (bundle.outlet.slug !== slug) notFound();
+    return bundle;
+  } catch (error) {
+    // Supabase's single-row lookup reports a missing outlet with PGRST116.
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "PGRST116") {
+      notFound();
+    }
+    throw error;
+  }
 }
 
-export default async function OrderMenuPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
-  const { outlet, categories, items, coupons } = await getMenuBundle(
-    (await params).slug
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { outlet } = await getOutletMenu((await params).slug);
+  // Homepage renders the same menu, so consolidate this duplicate to its canonical.
+  return pageMetadata(
+    "Burger Budds Menu | Order Burgers Online in Gwalior",
+    `Explore burgers, fries and shakes from ${outlet.name}. Order fast food online for delivery or takeaway in Gwalior.`,
+    "/"
   );
+}
 
-  // Restaurant + Menu JSON-LD Structured Data (PLAN.md section 9)
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Restaurant",
-    name: outlet.name,
-    servesCuisine: ["Burgers", "American", "Fast Food", "Beverages"],
-    telephone: outlet.phone,
-    address: {
-      "@type": "PostalAddress",
-      streetAddress: outlet.address,
-      addressLocality: "Gwalior",
-      addressRegion: "MP",
-      addressCountry: "IN",
-    },
-    geo: {
-      "@type": "GeoCoordinates",
-      latitude: outlet.lat,
-      longitude: outlet.lng,
-    },
-    hasMenu: {
-      "@type": "Menu",
-      hasMenuSection: categories.map((cat) => ({
-        "@type": "MenuSection",
-        name: cat.name,
-        hasMenuItem: items
-          .filter((i) => i.category_id === cat.id)
-          .map((i) => ({
-            "@type": "MenuItem",
-            name: i.name,
-            description: i.description,
-            offers: {
-              "@type": "Offer",
-              price: i.price,
-              priceCurrency: "INR",
-            },
-          })),
-      })),
-    },
-  };
-
+export default async function OrderMenuPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { outlet, categories, items, coupons } = await getOutletMenu((await params).slug);
   return (
-    <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
-      />
-      <OrderMenuClient
-        initialOutlet={outlet}
-        initialCategories={categories}
-        initialItems={items}
-        initialCoupons={coupons}
-      />
-    </>
+    <OrderMenuClient
+      initialOutlet={outlet}
+      initialCategories={categories}
+      initialItems={items}
+      initialCoupons={coupons}
+    />
   );
 }

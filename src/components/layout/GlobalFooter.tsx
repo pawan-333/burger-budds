@@ -16,6 +16,8 @@ export function GlobalFooter() {
             <img
               src="/logo.png"
               alt="Burger Budds"
+              loading="lazy"
+              decoding="async"
               className="h-11 w-auto object-contain"
             />
             <div>
@@ -68,7 +70,7 @@ export function GlobalFooter() {
               </Link>
             </li>
             <li>
-              <Link href="/track/ord-demo-1001" className="hover:underline">
+              <Link href="/track" className="hover:underline">
                 Track Live Order
               </Link>
             </li>

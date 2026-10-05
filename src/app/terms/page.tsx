@@ -1,4 +1,7 @@
 import React from "react";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata = pageMetadata("Terms & Conditions | Burger Budds", "Read the terms and conditions for Burger Budds online ordering, including order charges and cancellation conditions.", "/terms");
 import { GlobalHeader } from "@/components/layout/GlobalHeader";
 import { GlobalFooter } from "@/components/layout/GlobalFooter";
 

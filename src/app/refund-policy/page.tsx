@@ -1,4 +1,7 @@
 import React from "react";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata = pageMetadata("Refund & Cancellation Policy | Burger Budds", "Read Burger Budds order cancellation and refund policies before placing your online order.", "/refund-policy");
 import { GlobalHeader } from "@/components/layout/GlobalHeader";
 import { GlobalFooter } from "@/components/layout/GlobalFooter";
 

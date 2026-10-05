@@ -1,4 +1,7 @@
 import React from "react";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata = pageMetadata("Privacy Policy | Burger Budds", "Learn how Burger Budds uses customer contact and delivery information to fulfil online food orders.", "/privacy");
 import { GlobalHeader } from "@/components/layout/GlobalHeader";
 import { GlobalFooter } from "@/components/layout/GlobalFooter";
 

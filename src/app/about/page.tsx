@@ -1,4 +1,7 @@
 import React from "react";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata = pageMetadata("About Burger Budds | Burgers in Gwalior", "Discover Burger Budds in Gwalior and our passion for freshly prepared smash burgers, paneer burgers, crispy fries and thick shakes.", "/about");
 import Link from "next/link";
 import { Flame, Heart, ShieldCheck, Utensils } from "lucide-react";
 import { GlobalHeader } from "@/components/layout/GlobalHeader";

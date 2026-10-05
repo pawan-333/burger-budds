@@ -218,7 +218,7 @@ export function GlobalHeader({ totalMenuItems = 10 }: GlobalHeaderProps) {
 
           {/* Track Order Link */}
           <Link
-            href="/track/ord-demo-1001"
+            href="/track"
             className="hidden md:inline-flex min-h-[44px] px-3 py-2 rounded-xs items-center gap-1.5 text-sm font-bold text-text-onSecondary hover:bg-brand-secondaryDark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary transition duration-fast"
           >
             <Truck className="w-4 h-4 text-brand-primary" />
@@ -355,7 +355,7 @@ export function GlobalHeader({ totalMenuItems = 10 }: GlobalHeaderProps) {
                 ))}
                 <li>
                   <Link
-                    href="/track/ord-demo-1001"
+                    href="/track"
                     className="min-h-[44px] px-3 py-2.5 rounded-xs flex items-center gap-2 text-base font-bold text-text-onSecondary hover:bg-brand-secondaryDark"
                   >
                     <Truck className="w-4 h-4 text-brand-primary" />

@@ -1,4 +1,7 @@
 import React from "react";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata = pageMetadata("Burger Budds Gallery | Burgers, Fries & Shakes", "Explore the Burger Budds food gallery with smash burgers, paneer burgers, crinkle fries and shakes. Browse our Gwalior menu and order online.", "/gallery");
 import Link from "next/link";
 import { GlobalHeader } from "@/components/layout/GlobalHeader";
 import { GlobalFooter } from "@/components/layout/GlobalFooter";
@@ -36,6 +39,8 @@ export default function GalleryPage() {
                 <img
                   src={item.image_url}
                   alt={item.name}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover"
                 />
               </div>

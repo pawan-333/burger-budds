@@ -1,4 +1,7 @@
 import React from "react";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata = pageMetadata("Burger Budds FAQs | Ordering & Delivery Help", "Find answers to common questions about Burger Budds online ordering, delivery and customer support in Gwalior.", "/faqs");
 import { GlobalHeader } from "@/components/layout/GlobalHeader";
 import { GlobalFooter } from "@/components/layout/GlobalFooter";
 

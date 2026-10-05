@@ -5,6 +5,7 @@ import { AppProvider } from "@/context/AppContext";
 import { OtpAuthModal } from "@/components/modals/OtpAuthModal";
 import { AddressModal } from "@/components/modals/AddressModal";
 import { ProfileDrawer } from "@/components/modals/ProfileDrawer";
+import { SITE_URL } from "@/lib/seo";
 
 const figtree = Figtree({
   subsets: ["latin"],
@@ -14,6 +15,9 @@ const figtree = Figtree({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  applicationName: "Burger Budds",
+  icons: { apple: "/icon" },
   title: "Burger Budds — Online Ordering | Fresh Smash Burgers in Gwalior",
   description:
     "Order handcrafted smash burgers, crispy paneer burgers, peri-peri crinkle fries, and thick shakes online from Burger Budds Vinay Nagar, Gwalior.",
