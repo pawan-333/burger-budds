@@ -1,23 +1,23 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { CheckCircle2, Loader2, Phone, ShieldCheck, X } from "lucide-react";
+import { CheckCircle2, Loader2, Mail, ShieldCheck, X } from "lucide-react";
 import { useApp } from "@/context/AppContext";
+import { sendEmailOtp } from "@/lib/supabase/email-auth";
 
 export function OtpAuthModal() {
   const {
     isAuthModalOpen,
     closeAuthModal,
-    sendPhoneOtp,
     verifyPhoneOtp,
   } = useApp();
 
   const dialogRef = useRef<HTMLDialogElement | null>(null);
 
   const [step, setStep] = useState<"phone" | "otp">("phone");
-  const [name, setName] = useState("Aditya Verma");
-  const [phone, setPhone] = useState("9826055443");
-  const [otp, setOtp] = useState("123456");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
@@ -64,7 +64,7 @@ export function OtpAuthModal() {
     e.preventDefault();
     setErrorMsg(null);
     setLoading(true);
-    const res = await sendPhoneOtp(phone);
+    const res = await sendEmailOtp(phone, name);
     setLoading(false);
     if (!res.ok) {
       setErrorMsg(res.message);
@@ -96,10 +96,10 @@ export function OtpAuthModal() {
       <div className="bg-brand-secondary text-text-onSecondary px-5 py-4 flex items-center justify-between">
         <div>
           <h2 id="otp-modal-title" className="text-lg font-extrabold">
-            {step === "phone" ? "Login / Sign Up" : "Verify Mobile OTP"}
+            {step === "phone" ? "Login / Sign Up" : "Verify Email"}
           </h2>
           <p className="text-xs text-text-onSecondary/85">
-            Unlock 150 BB Coins & faster checkout with Burger Budds
+            Sign in for faster checkout and order tracking
           </p>
         </div>
         <button
@@ -157,23 +157,22 @@ export function OtpAuthModal() {
                 htmlFor="auth-phone"
                 className="block text-xs font-bold text-text-secondary mb-1"
               >
-                Mobile Number *
+                Email Address *
               </label>
               <div className="flex items-center rounded-xs border border-border-muted bg-surface-base focus-within:ring-2 focus-within:ring-brand-secondary overflow-hidden">
                 <span className="px-3 py-2.5 bg-surface-raised text-sm font-bold text-text-secondary border-r border-border-muted flex items-center gap-1">
-                  <Phone className="w-3.5 h-3.5 text-brand-secondary" />
-                  +91
+                  <Mail className="w-3.5 h-3.5 text-brand-secondary" />
                 </span>
                 <input
                   id="auth-phone"
-                  type="tel"
+                  type="email"
+                  autoComplete="email"
                   required
-                  maxLength={10}
                   value={phone}
                   onChange={(e) =>
-                    setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
+                    setPhone(e.target.value)
                   }
-                  placeholder="10-digit mobile number"
+                  placeholder="you@example.com"
                   className="w-full min-h-[44px] px-3.5 text-sm font-bold text-text-primary focus:outline-none"
                 />
               </div>
@@ -181,7 +180,7 @@ export function OtpAuthModal() {
 
             <button
               type="submit"
-              disabled={loading || phone.length !== 10}
+              disabled={loading || !phone.includes("@")}
               className="w-full min-h-[44px] rounded-xs bg-brand-primary hover:bg-brand-primaryHover disabled:opacity-50 text-text-onPrimary font-extrabold text-sm flex items-center justify-center gap-2 shadow-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary focus-visible:ring-offset-2 transition duration-fast"
             >
               {loading ? (
@@ -202,32 +201,32 @@ export function OtpAuthModal() {
                   htmlFor="auth-otp"
                   className="text-xs font-bold text-text-secondary"
                 >
-                  Enter 6-Digit OTP sent to +91 {phone}
+                  Enter the code sent to {phone}
                 </label>
                 <button
                   type="button"
                   onClick={() => setStep("phone")}
                   className="text-xs font-bold text-brand-secondary underline"
                 >
-                  Change Number
+                  Change Email
                 </button>
               </div>
               <input
                 id="auth-otp"
                 type="text"
                 inputMode="numeric"
-                maxLength={6}
+                maxLength={8}
+                autoComplete="one-time-code"
                 required
                 value={otp}
                 onChange={(e) =>
-                  setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                  setOtp(e.target.value.replace(/\D/g, "").slice(0, 8))
                 }
-                placeholder="123456"
+                placeholder="Verification code"
                 className="w-full min-h-[44px] px-4 rounded-xs border border-border-muted bg-surface-base text-center tracking-[0.4em] text-lg font-extrabold text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-secondary"
               />
               <p className="mt-1.5 text-[11px] font-medium text-text-muted">
-                Tip: Use <strong className="text-text-primary">123456</strong>{" "}
-                for instant demo verification if SMS gateway is not linked.
+                Check your inbox and spam folder. Your code expires shortly.
               </p>
             </div>
 

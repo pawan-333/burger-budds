@@ -32,7 +32,7 @@ export function computeServerBill(params: {
     orderType,
     couponCode,
     useWallet = false,
-    walletBalance = 150,
+    walletBalance = 0,
     distanceKm = 1.8,
   } = params;
 
@@ -40,7 +40,7 @@ export function computeServerBill(params: {
   const unavailableItemIds: string[] = [];
 
   for (const line of cartItems) {
-    if (line.qty <= 0) continue;
+    if (!Number.isInteger(line.qty) || line.qty < 1 || line.qty > 50) throw new Error("Invalid cart quantity.");
     const dbItem = menuItems.find((m) => m.id === line.itemId);
     if (!dbItem) {
       unavailableItemIds.push(line.itemId);
@@ -52,21 +52,24 @@ export function computeServerBill(params: {
 
     let unitPrice = Number(dbItem.price);
 
-    if (line.variantId && dbItem.variants?.length) {
-      const foundVariant = dbItem.variants.find((v) => v.id === line.variantId);
-      if (foundVariant) {
-        unitPrice += Number(foundVariant.price_delta);
-      }
+    if (line.variantId) {
+      const foundVariant = dbItem.variants?.find((v) => v.id === line.variantId);
+      if (!foundVariant) throw new Error("Invalid item variant.");
+      unitPrice += Number(foundVariant.price_delta);
     }
 
-    if (line.addonIds?.length && dbItem.addon_groups?.length) {
-      const allAddons = dbItem.addon_groups.flatMap((g) => g.addons || []);
+    if (line.addonIds?.length) {
+      if (new Set(line.addonIds).size !== line.addonIds.length) throw new Error("Duplicate add-ons.");
+      const allAddons = dbItem.addon_groups?.flatMap((g) => g.addons || []) || [];
       for (const addonId of line.addonIds) {
         const foundAddon = allAddons.find((a) => a.id === addonId);
-        if (foundAddon) {
-          unitPrice += Number(foundAddon.price);
-        }
+        if (!foundAddon) throw new Error("Invalid item add-on.");
+        unitPrice += Number(foundAddon.price);
       }
+    }
+    for (const group of dbItem.addon_groups || []) {
+      const count = (line.addonIds || []).filter((id) => group.addons.some((addon) => addon.id === id)).length;
+      if (count < group.min_select || count > group.max_select) throw new Error("Please review required add-ons.");
     }
 
     itemTotal += unitPrice * line.qty;
@@ -96,7 +99,9 @@ export function computeServerBill(params: {
   if (couponCode && couponCode.trim().length > 0) {
     const normalized = couponCode.trim().toUpperCase();
     const coupon = coupons.find(
-      (c) => c.code.toUpperCase() === normalized && c.is_active
+      (c) => c.code.toUpperCase() === normalized && c.is_active &&
+        (!c.starts_at || new Date(c.starts_at).getTime() <= Date.now()) &&
+        (!c.ends_at || new Date(c.ends_at).getTime() > Date.now())
     );
     if (!coupon) {
       couponMessage = `Coupon "${normalized}" is invalid or expired.`;
@@ -116,7 +121,7 @@ export function computeServerBill(params: {
   }
 
   const taxableAmount = Math.max(0, itemTotal - discount);
-  const gstPercent = Number(outlet.gst_percent) || 5;
+  const gstPercent = Number(outlet.gst_percent ?? 5);
   const tax = Math.round((taxableAmount * gstPercent) / 100);
 
   let deliveryFee = 0;
@@ -136,7 +141,7 @@ export function computeServerBill(params: {
     }
   }
 
-  const platformFee = Number(outlet.platform_fee) || 9;
+  const platformFee = Number(outlet.platform_fee ?? 9);
   const preWalletTotal = Math.max(
     0,
     itemTotal - discount + tax + deliveryFee + platformFee

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -67,6 +67,8 @@ export default function CheckoutPage() {
   );
   const [showAllCoupons, setShowAllCoupons] = useState<boolean>(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod");
+  const [pickupPhone, setPickupPhone] = useState("");
+  const requestIdentity = useRef<{ signature: string; key: string } | null>(null);
 
   const [bill, setBill] = useState<BillBreakdown | null>(null);
   const [loadingBill, setLoadingBill] = useState<boolean>(false);
@@ -153,10 +155,15 @@ export default function CheckoutPage() {
       });
       return;
     }
+    if (orderType === "takeaway" && !/^[6-9]\d{9}$/.test(pickupPhone)) {
+      setOrderError("Please enter your 10-digit mobile number for pickup updates."); return;
+    }
 
     setPlacingOrder(true);
     try {
-      const idempotencyKey = `idem-${user.id}-${cartItems.length}-${cartSubtotal}-${Date.now()}`;
+      const signature = JSON.stringify({ user: user.id, cartItems, selectedAddress, orderType, couponCode, specialInstructions, pickupPhone });
+      if (requestIdentity.current?.signature !== signature) requestIdentity.current = { signature, key: crypto.randomUUID() };
+      const idempotencyKey = requestIdentity.current.key;
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -165,7 +172,7 @@ export default function CheckoutPage() {
           outletSlug: DEFAULT_OUTLET_SLUG,
           userId: user.id,
           customerName: user.name,
-          customerPhone: user.phone,
+          customerPhone: orderType === "takeaway" ? pickupPhone : selectedAddress?.phone,
           orderType,
           address: orderType === "delivery" ? selectedAddress : null,
           couponCode,
@@ -551,15 +558,16 @@ export default function CheckoutPage() {
                     <Coins className="w-5 h-5 text-brand-secondary shrink-0" />
                     <div>
                       <p className="text-xs sm:text-sm font-extrabold text-text-primary">
-                        Available BB Coins: {walletBalance} — Use Wallet Balance
+                        BB Coins — Coming soon
                       </p>
                       <p className="text-[11px] font-medium text-text-secondary">
-                        Instant ₹{walletBalance} wallet savings on this order
+                        Rewards will be available in a future update
                       </p>
                     </div>
                   </div>
                   <input
                     type="checkbox"
+                    disabled
                     checked={useWallet}
                     onChange={(e) => setUseWallet(e.target.checked)}
                     className="w-5 h-5 accent-brand-secondary cursor-pointer"
@@ -605,6 +613,8 @@ export default function CheckoutPage() {
                       Self Pickup at {SEED_OUTLET.name}
                     </p>
                     <p className="text-text-secondary">{SEED_OUTLET.address}</p>
+                    <label htmlFor="pickup-phone" className="block font-bold pt-2">Mobile number for pickup updates</label>
+                    <input id="pickup-phone" type="tel" autoComplete="tel-national" inputMode="numeric" maxLength={10} value={pickupPhone} onChange={(event) => setPickupPhone(event.target.value.replace(/\D/g, "").slice(0, 10))} className="w-full min-h-[44px] rounded-xs border border-border-muted px-3 text-sm" placeholder="10-digit mobile number" />
                     <p className="font-bold text-status-open">
                       Zero Delivery Fee • Ready in ~{SEED_OUTLET.prep_time_min}{" "}
                       Mins
@@ -744,6 +754,8 @@ export default function CheckoutPage() {
                     <button
                       type="button"
                       onClick={() => setPaymentMethod("razorpay")}
+                      disabled
+                      aria-label="Online payment coming soon"
                       className={`min-h-[44px] px-3 py-2 rounded-xs border text-xs font-extrabold flex items-center justify-center gap-1.5 transition duration-fast ${
                         paymentMethod === "razorpay"
                           ? "border-brand-secondary bg-brand-secondary text-text-onSecondary"
@@ -751,7 +763,7 @@ export default function CheckoutPage() {
                       }`}
                     >
                       <CreditCard className="w-4 h-4" />
-                      <span>UPI / Card</span>
+                      <span>UPI / Card · Soon</span>
                     </button>
                   </div>
                 </div>

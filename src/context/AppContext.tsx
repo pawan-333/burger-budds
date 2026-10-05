@@ -18,6 +18,7 @@ import {
   UserProfile,
 } from "@/types/database";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { verifyEmailOtp } from "@/lib/supabase/email-auth";
 
 interface AddToCartInput {
   item: MenuItem;
@@ -72,8 +73,8 @@ interface AppContextValue {
   savedAddresses: Address[];
   selectedAddress: Address | null;
   selectAddress: (addr: Address) => void;
-  addSavedAddress: (addr: Omit<Address, "id" | "user_id">) => Address;
-  deleteSavedAddress: (id: string) => void;
+  addSavedAddress: (addr: Omit<Address, "id" | "user_id">) => Promise<Address>;
+  deleteSavedAddress: (id: string) => Promise<void>;
   isAddressModalOpen: boolean;
   openAddressModal: () => void;
   closeAddressModal: () => void;
@@ -129,7 +130,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [profileSection, setProfileSection] = useState<string>("overview");
 
   const [savedAddresses, setSavedAddresses] = useState<Address[]>(
-    DEFAULT_SAVED_ADDRESSES
+    []
   );
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState<boolean>(false);
@@ -153,24 +154,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       const rawUser = localStorage.getItem(STORAGE_KEYS.USER);
-      if (rawUser) {
+      if (rawUser && !getSupabaseBrowserClient() && process.env.NODE_ENV !== "production") {
         setUser(JSON.parse(rawUser));
       }
 
       const rawAddresses = localStorage.getItem(STORAGE_KEYS.ADDRESSES);
-      if (rawAddresses) {
+      if (rawAddresses && !getSupabaseBrowserClient()) {
         const list = JSON.parse(rawAddresses);
         if (Array.isArray(list)) setSavedAddresses(list);
       }
 
       const rawSelectedAddr = localStorage.getItem(STORAGE_KEYS.SELECTED_ADDR);
-      if (rawSelectedAddr) {
+      if (rawSelectedAddr && !getSupabaseBrowserClient()) {
         setSelectedAddress(JSON.parse(rawSelectedAddr));
       }
     } catch {
       // Ignore storage errors
     }
     setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    const sb = getSupabaseBrowserClient();
+    if (!sb) return;
+    let active = true;
+    const syncUser = async () => {
+      const { data } = await sb.auth.getUser();
+      if (!active) return;
+      if (!data.user) { setUser(null); setSavedAddresses([]); setSelectedAddress((previous) => previous?.user_id === "guest-user" ? previous : null); return; }
+      const { data: profile } = await sb.from("profiles").select("*").eq("id", data.user.id).maybeSingle();
+      if (active) setUser({
+        id: data.user.id,
+        name: profile?.name || data.user.user_metadata?.name || "Burger Budds Customer",
+        phone: data.user.phone || "",
+        email: data.user.email || "",
+        wallet_balance: Number(profile?.wallet_balance || 0),
+        referral_code: profile?.referral_code || "",
+      });
+      const { data: addresses } = await sb.from("addresses").select("*").eq("user_id", data.user.id).order("created_at", { ascending: false });
+      if (active) {
+        setSavedAddresses(addresses || []);
+        setSelectedAddress((previous) => previous?.user_id === "guest-user" ? previous : (addresses || []).find((address) => address.id === previous?.id) || null);
+      }
+    };
+    void syncUser();
+    const { data: subscription } = sb.auth.onAuthStateChange(() => { setTimeout(() => void syncUser(), 0); });
+    return () => { active = false; subscription.subscription.unsubscribe(); };
   }, []);
 
   useEffect(() => {
@@ -381,6 +410,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const verifyPhoneOtp = useCallback(
     async (phone: string, otp: string, name?: string) => {
+      if (phone.includes("@")) {
+        const result = await verifyEmailOtp(phone, otp);
+        if (!result.ok || !result.user) return { ok: false, message: result.message };
+        const profile: UserProfile = {
+          id: result.user.id, name: name?.trim() || "Burger Budds Customer",
+          phone: result.user.phone || "", email: result.user.email || phone,
+          wallet_balance: 0, referral_code: "",
+        };
+        setUser(profile);
+        const sb = getSupabaseBrowserClient();
+        await sb?.from("profiles").update({ name: profile.name }).eq("id", profile.id);
+        setIsAuthModalOpen(false);
+        if (authCallback) authCallback();
+        return { ok: true, message: "Signed in!" };
+      }
       const cleanPhone = phone.replace(/\D/g, "").slice(-10);
       const formatted = `+91 ${cleanPhone}`;
       const sb = getSupabaseBrowserClient();
@@ -396,8 +440,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               id: data.user.id,
               name: name?.trim() || "Burger Budds Fan",
               phone: formatted,
-              email: data.user.email || "fan@burgerbudds.in",
-              wallet_balance: 150,
+              email: data.user.email || "",
+              wallet_balance: 0,
               referral_code: `BB${cleanPhone.slice(-4)}`,
             };
             setUser(profile);
@@ -440,6 +484,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const updateUserProfile = useCallback((patch: Partial<UserProfile>) => {
+    const sb = getSupabaseBrowserClient();
+    if (sb) {
+      void sb.auth.getUser().then(({ data }) => {
+        if (data.user) void sb.from("profiles").update({ name: patch.name, email: patch.email, phone: patch.phone }).eq("id", data.user.id);
+      });
+    }
     setUser((prev) => {
       if (!prev) return prev;
       const updated = { ...prev, ...patch };
@@ -454,6 +504,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sb.auth.signOut().catch(() => {});
     }
     setUser(null);
+    setSavedAddresses([]);
+    setSelectedAddress(null);
+    localStorage.removeItem(STORAGE_KEYS.ADDRESSES);
+    localStorage.removeItem(STORAGE_KEYS.SELECTED_ADDR);
     setIsProfileOpen(false);
     localStorage.removeItem(STORAGE_KEYS.USER);
   }, []);
@@ -473,12 +527,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addSavedAddress = useCallback(
-    (addr: Omit<Address, "id" | "user_id">): Address => {
-      const created: Address = {
+    async (addr: Omit<Address, "id" | "user_id">): Promise<Address> => {
+      let created: Address = {
         ...addr,
-        id: `addr-${Date.now()}`,
+        id: crypto.randomUUID(),
         user_id: user?.id || "guest-user",
       };
+      const sb = getSupabaseBrowserClient();
+      if (sb && user) {
+        const { distance_km, ...persisted } = created;
+        const { data, error } = await sb.from("addresses").insert(persisted).select().single();
+        if (error) throw new Error("Could not save your address. Please try again.");
+        created = { ...data, distance_km };
+      }
       setSavedAddresses((prev) => {
         const next = [created, ...prev];
         localStorage.setItem(STORAGE_KEYS.ADDRESSES, JSON.stringify(next));
@@ -490,7 +551,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [user, selectAddress]
   );
 
-  const deleteSavedAddress = useCallback((id: string) => {
+  const deleteSavedAddress = useCallback(async (id: string) => {
+    const sb = getSupabaseBrowserClient();
+    if (sb) {
+      const { error } = await sb.from("addresses").delete().eq("id", id);
+      if (error) throw new Error("Could not remove the address. Please try again.");
+    }
     setSavedAddresses((prev) => {
       const next = prev.filter((a) => a.id !== id);
       localStorage.setItem(STORAGE_KEYS.ADDRESSES, JSON.stringify(next));

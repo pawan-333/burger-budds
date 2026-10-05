@@ -109,6 +109,9 @@ export interface Coupon {
   min_order: number;
   max_discount: number | null;
   first_order_only: boolean;
+  starts_at?: string;
+  ends_at?: string;
+  usage_limit?: number;
   is_active: boolean;
 }
 

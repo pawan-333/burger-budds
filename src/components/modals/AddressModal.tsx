@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -80,6 +81,8 @@ const GWALIOR_LOCATIONS: PresetLocation[] = [
   },
 ];
 
+const DeliveryMap = dynamic(() => import("@/components/maps/DeliveryMap"), { ssr: false });
+
 export function AddressModal() {
   const {
     isAddressModalOpen,
@@ -114,7 +117,7 @@ export function AddressModal() {
   const [house, setHouse] = useState<string>("");
   const [landmark, setLandmark] = useState<string>("");
   const [phone, setPhone] = useState<string>(
-    user?.phone?.replace(/\D/g, "").slice(-10) || "9826055443"
+    user?.phone?.replace(/\D/g, "").slice(-10) || ""
   );
   const [email, setEmail] = useState<string>(user?.email || "");
   const [label, setLabel] = useState<AddressLabel>("home");
@@ -235,23 +238,16 @@ export function AddressModal() {
           setCity("Gwalior");
         },
         () => {
-          // Default to Vinay Nagar Sector 3 if denied on desktop
-          setPinLat(26.2205);
-          setPinLng(78.1812);
-          setLocality("Sector 3, Vinay Nagar");
-          setCity("Gwalior");
+          setFormError("Could not access your location. Please place the pin on the map.");
         },
         { timeout: 4000 }
       );
     } else {
-      setPinLat(26.2205);
-      setPinLng(78.1812);
-      setLocality("Sector 3, Vinay Nagar");
-      setCity("Gwalior");
+      setFormError("Location is not available in this browser. Please place the pin on the map.");
     }
   };
 
-  const handleSaveAddress = (e: React.FormEvent) => {
+  const handleSaveAddress = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
@@ -273,7 +269,7 @@ export function AddressModal() {
       return;
     }
 
-    addSavedAddress({
+    try { await addSavedAddress({
       label,
       house: house.trim(),
       landmark: landmark.trim(),
@@ -284,7 +280,7 @@ export function AddressModal() {
       locality,
       city,
       distance_km: serviceability?.distanceKm ?? 1.2,
-    });
+    }); } catch (error) { setFormError(error instanceof Error ? error.message : "Could not save address."); return; }
 
     setMode("list");
     setMobileStep(1);
@@ -418,7 +414,7 @@ export function AddressModal() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => deleteSavedAddress(addr.id)}
+                        onClick={() => void deleteSavedAddress(addr.id).catch((error) => setFormError(error.message))}
                         aria-label={`Delete ${addr.label} address`}
                         className="p-1.5 text-text-muted hover:text-status-error rounded-xs"
                       >
@@ -536,87 +532,7 @@ export function AddressModal() {
                 })}
               </div>
 
-              {/* Interactive Draggable Pin Map Canvas */}
-              <div
-                ref={mapBoxRef}
-                onClick={handleMapClickOrDrag}
-                role="application"
-                aria-label="Interactive delivery map — click or tap anywhere to move the delivery pin"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowUp") setPinLat((p) => Number((p + 0.005).toFixed(5)));
-                  if (e.key === "ArrowDown") setPinLat((p) => Number((p - 0.005).toFixed(5)));
-                  if (e.key === "ArrowRight") setPinLng((p) => Number((p + 0.005).toFixed(5)));
-                  if (e.key === "ArrowLeft") setPinLng((p) => Number((p - 0.005).toFixed(5)));
-                }}
-                className="relative w-full h-64 sm:h-72 rounded-sm border-2 border-border-muted bg-surface-page overflow-hidden cursor-crosshair select-none shadow-inner"
-              >
-                {/* Simulated Road Grid & Gwalior Landmarks */}
-                <div className="absolute inset-0 opacity-25 pointer-events-none">
-                  <div className="w-full h-full grid grid-cols-6 grid-rows-6">
-                    {Array.from({ length: 36 }).map((_, idx) => (
-                      <div
-                        key={idx}
-                        className="border border-brand-secondary/30"
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                {/* 5km Serviceable Zone Circle around Burger Budds Outlet */}
-                <div
-                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-52 h-52 sm:w-60 sm:h-60 rounded-pill border-2 border-dashed border-brand-secondary bg-brand-secondarySoft/35 pointer-events-none flex items-end justify-center pb-2"
-                  aria-hidden="true"
-                >
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-pill bg-brand-secondary text-text-onSecondary">
-                    5 km Delivery Zone • Vinay Nagar
-                  </span>
-                </div>
-
-                {/* Outlet Marker at Center */}
-                <div
-                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex flex-col items-center"
-                  aria-hidden="true"
-                >
-                  <span className="px-2 py-0.5 rounded-xs bg-brand-secondary text-brand-primary text-[10px] font-extrabold shadow-1">
-                    Burger Budds Outlet
-                  </span>
-                  <span className="w-3 h-3 rounded-pill bg-brand-secondary border-2 border-surface-base" />
-                </div>
-
-                {/* Customer Draggable Pin + Required Tooltip */}
-                <div
-                  style={{
-                    left: `${pinLeftPercent}%`,
-                    top: `${pinTopPercent}%`,
-                  }}
-                  className="absolute -translate-x-1/2 -translate-y-full pointer-events-none flex flex-col items-center transition-all duration-instant"
-                >
-                  <div className="px-2.5 py-1 rounded-xs bg-surface-dark text-text-onSecondary text-[11px] font-bold shadow-floating whitespace-nowrap mb-1">
-                    Your order will be delivered here — Move the map to place
-                    the pin
-                  </div>
-                  <div
-                    className={`w-9 h-9 rounded-pill flex items-center justify-center shadow-floating border-2 border-surface-base ${
-                      isServiceable
-                        ? "bg-brand-primary text-text-onPrimary"
-                        : "bg-status-error text-text-onSecondary"
-                    }`}
-                  >
-                    <MapPin className="w-5 h-5" />
-                  </div>
-                </div>
-
-                {/* Bottom Coordinates Overlay */}
-                <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between px-3 py-1.5 rounded-xs bg-surface-base/90 backdrop-blur-xs text-[11px] font-bold text-text-secondary border border-border-subtle">
-                  <span>
-                    Pin: {pinLat.toFixed(4)}°N, {pinLng.toFixed(4)}°E
-                  </span>
-                  <span className="text-brand-secondary">
-                    Tap map or use arrow keys to move pin
-                  </span>
-                </div>
-              </div>
+              <DeliveryMap lat={pinLat} lng={pinLng} outletLat={SEED_OUTLET.lat} outletLng={SEED_OUTLET.lng} radiusKm={SEED_OUTLET.delivery_radius_km} onSelect={(lat, lng) => { setPinLat(lat); setPinLng(lng); }} />
 
               {/* Serviceability Status Banner */}
               {checkingService ? (

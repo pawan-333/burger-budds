@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
+import { getSupabaseServerClient, getVerifiedUser } from "@/lib/supabase/server";
 import {
   computeDistanceKm,
+  getInitialStore,
   getMenuBundle,
   getSupabaseAdminClient,
   isPointInPolygon,
@@ -21,6 +24,24 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const orderId = req.nextUrl.searchParams.get("id");
   const userId = req.nextUrl.searchParams.get("userId");
+  const session = await getSupabaseServerClient();
+  if (session) {
+    const user = await getVerifiedUser();
+    if (!user) return NextResponse.json({ error: "Please log in." }, { status: 401 });
+    let query = session.from("orders").select("*, items:order_items(*), events:order_events(*)").order("placed_at", { ascending: false });
+    if (orderId) {
+      if (orderId.startsWith("BB-")) query = query.eq("order_no", orderId);
+      else query = query.eq("id", orderId);
+    }
+    if (userId) query = query.eq("user_id", user.id);
+    const { data, error } = await query;
+    if (error) return NextResponse.json({ error: "Unable to load orders." }, { status: 500 });
+    if (orderId) return data?.[0]
+      ? NextResponse.json({ order: data[0] })
+      : NextResponse.json({ error: "Order not found" }, { status: 404 });
+    return NextResponse.json({ orders: data || [] });
+  }
+  if (process.env.NODE_ENV === "production") return NextResponse.json({ error: "Ordering service is not configured." }, { status: 503 });
   const store = readLocalStore();
 
   if (orderId) {
@@ -54,7 +75,12 @@ export async function POST(req: NextRequest) {
       );
     }
     const idempotencyKey: string | undefined = body.idempotencyKey;
-    const store = readLocalStore();
+    const sb = getSupabaseAdminClient();
+    const verifiedUser = sb ? await getVerifiedUser() : null;
+    if (sb && !verifiedUser) return NextResponse.json({ error: "Please log in before placing an order." }, { status: 401 });
+    if (!sb && process.env.NODE_ENV === "production") return NextResponse.json({ error: "Ordering service is not configured." }, { status: 503 });
+    if (idempotencyKey && (typeof idempotencyKey !== "string" || idempotencyKey.length > 200)) return NextResponse.json({ error: "Invalid order request key." }, { status: 400 });
+    const store = sb ? { ...getInitialStore(), orders: [], idempotencyKeys: {} as Record<string, string> } : readLocalStore();
 
     if (idempotencyKey && store.idempotencyKeys[idempotencyKey]) {
       const existingOrderId = store.idempotencyKeys[idempotencyKey];
@@ -81,10 +107,13 @@ export async function POST(req: NextRequest) {
     const orderType: OrderType =
       body.orderType === "takeaway" ? "takeaway" : "delivery";
     const address: Address | null = body.address || null;
+    if (orderType === "takeaway" && !/^[6-9]\d{9}$/.test(String(body.customerPhone || "").replace(/\D/g, "").slice(-10))) {
+      return NextResponse.json({ error: "Please enter a valid pickup mobile number." }, { status: 400 });
+    }
 
     let distanceKm = 1.5;
     if (orderType === "delivery") {
-      if (!address || typeof address.lat !== "number" || typeof address.lng !== "number") {
+      if (!address || !Number.isFinite(address.lat) || !Number.isFinite(address.lng) || address.lat < -90 || address.lat > 90 || address.lng < -180 || address.lng > 180 || !address.house?.trim() || !/^[6-9]\d{9}$/.test(address.phone?.replace(/\D/g, "").slice(-10) || "")) {
         return NextResponse.json(
           { error: "Please select a valid delivery address." },
           { status: 400 }
@@ -130,6 +159,10 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    if (rawLines.length > 100 || rawLines.some((line) => !Number.isInteger(line.qty) || line.qty < 1 || line.qty > 50 || typeof line.itemId !== "string" || (line.addonIds && !Array.isArray(line.addonIds)))) {
+      return NextResponse.json({ error: "Please check your cart quantities." }, { status: 400 });
+    }
+    if (body.useWallet) return NextResponse.json({ error: "Wallet payments are not available yet." }, { status: 400 });
 
     const serverInput: ServerCartItemInput[] = rawLines.map((l) => ({
       itemId: l.itemId,
@@ -145,9 +178,8 @@ export async function POST(req: NextRequest) {
       coupons,
       orderType,
       couponCode: body.couponCode || null,
-      useWallet: Boolean(body.useWallet),
-      walletBalance:
-        typeof body.walletBalance === "number" ? body.walletBalance : 150,
+      useWallet: false,
+      walletBalance: 0,
       distanceKm,
     });
 
@@ -161,10 +193,11 @@ export async function POST(req: NextRequest) {
         { status: 409 }
       );
     }
+    if (bill.itemTotal < Number(outlet.min_order)) return NextResponse.json({ error: `Minimum order value is ₹${outlet.min_order}.` }, { status: 400 });
 
-    const orderId = `ord-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const orderId = sb ? randomUUID() : `ord-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const nextNumber = 2402 + store.orders.length;
-    const orderNo = `BB-${nextNumber}`;
+    const orderNo = sb ? `BB-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}` : `BB-${nextNumber}`;
     const nowIso = new Date().toISOString();
 
     const orderItems: OrderItemRecord[] = rawLines.map((line, index) => {
@@ -198,7 +231,7 @@ export async function POST(req: NextRequest) {
       }
 
       return {
-        id: `oi-${Date.now()}-${index}`,
+        id: sb ? randomUUID() : `oi-${Date.now()}-${index}`,
         order_id: orderId,
         item_id: dbItem.id,
         item_name: dbItem.name,
@@ -216,10 +249,10 @@ export async function POST(req: NextRequest) {
     const newOrder: OrderRecord = {
       id: orderId,
       order_no: orderNo,
-      user_id: body.userId || "guest-user",
+      user_id: verifiedUser?.id || body.userId || "guest-user",
       customer_name: body.customerName || "Burger Budds Customer",
       customer_phone:
-        body.customerPhone || address?.phone || "+91 98260 00000",
+        verifiedUser?.phone || body.customerPhone || address?.phone || "",
       outlet_id: outlet.id,
       order_type: orderType,
       address_snapshot: address
@@ -236,22 +269,19 @@ export async function POST(req: NextRequest) {
       grand_total: bill.grandTotal,
       coupon_code: bill.couponCode,
       payment_method: paymentMethod,
-      payment_status: paymentMethod === "razorpay" ? "paid" : "pending",
-      razorpay_order_id:
-        paymentMethod === "razorpay" ? `rzp_live_${Date.now()}` : null,
+      payment_status: "pending",
+      razorpay_order_id: null,
       special_instructions: body.specialInstructions || "",
       marketing_opt_in: Boolean(body.marketingOptIn),
       prep_time_min: outlet.prep_time_min || 25,
-      rider_id: "88888888-8888-8888-8888-888888888801",
-      rider_name: "Rohit Tomar",
-      rider_phone: "+91 97550 11223",
+      rider_id: null,
       placed_at: nowIso,
       accepted_at: null,
       delivered_at: null,
       items: orderItems,
       events: [
         {
-          id: `ev-${Date.now()}`,
+          id: sb ? randomUUID() : `ev-${Date.now()}`,
           order_id: orderId,
           status: "placed",
           actor: "customer",
@@ -261,40 +291,19 @@ export async function POST(req: NextRequest) {
       ],
     };
 
+    if (sb) {
+      const { data, error } = await sb.rpc("create_order_atomic", {
+        order_payload: newOrder,
+        request_key: idempotencyKey || randomUUID(),
+      });
+      if (error) throw error;
+      return NextResponse.json({ order: data }, { status: 201 });
+    }
     store.orders.unshift(newOrder);
     if (idempotencyKey) {
       store.idempotencyKeys[idempotencyKey] = newOrder.id;
     }
     writeLocalStore(store);
-
-    const sb = getSupabaseAdminClient();
-    if (sb) {
-      try {
-        await sb.from("orders").insert({
-          order_no: newOrder.order_no,
-          customer_name: newOrder.customer_name,
-          customer_phone: newOrder.customer_phone,
-          outlet_id: newOrder.outlet_id,
-          order_type: newOrder.order_type,
-          address_snapshot: newOrder.address_snapshot,
-          status: newOrder.status,
-          item_total: newOrder.item_total,
-          tax: newOrder.tax,
-          delivery_fee: newOrder.delivery_fee,
-          platform_fee: newOrder.platform_fee,
-          discount: newOrder.discount,
-          wallet_used: newOrder.wallet_used,
-          grand_total: newOrder.grand_total,
-          coupon_code: newOrder.coupon_code,
-          payment_method: newOrder.payment_method,
-          payment_status: newOrder.payment_status,
-          special_instructions: newOrder.special_instructions,
-          prep_time_min: newOrder.prep_time_min,
-        });
-      } catch {
-        // Handled gracefully if user_id is guest UUID
-      }
-    }
 
     return NextResponse.json({ order: newOrder }, { status: 201 });
   } catch (err) {

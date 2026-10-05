@@ -31,7 +31,7 @@ interface LocalStoreSchema {
 const DATA_DIR = path.join(process.cwd(), ".data");
 const DB_FILE = path.join(DATA_DIR, "burger-budds-db.json");
 
-function getInitialStore(): LocalStoreSchema {
+export function getInitialStore(): LocalStoreSchema {
   return {
     outlet: structuredClone(SEED_OUTLET),
     categories: structuredClone(SEED_CATEGORIES),
@@ -79,9 +79,8 @@ export function writeLocalStore(store: LocalStoreSchema): void {
 export function getSupabaseAdminClient() {
   if (!isSupabaseConfigured()) return null;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) throw new Error("SUPABASE_SERVICE_ROLE_KEY is required on the server.");
   return createClient(url, key, {
     auth: { persistSession: false },
   });
@@ -128,15 +127,20 @@ export function isPointInPolygon(
 }
 
 export async function getMenuBundle(outletSlug?: string) {
-  const store = readLocalStore();
-  const sb = getSupabaseAdminClient();
+  const store = isSupabaseConfigured() || process.env.NODE_ENV === "production"
+    ? getInitialStore() : readLocalStore();
+  const sb = isSupabaseConfigured() ? createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { persistSession: false } }
+  ) : null;
   if (sb) {
     try {
-      const { data: outletData } = await sb
+      const { data: outletData, error: outletError } = await sb
         .from("outlets")
         .select("*")
         .eq("slug", outletSlug || store.outlet.slug)
         .single();
+      if (outletError) throw outletError;
       if (outletData) {
         const [{ data: categories }, { data: items }, { data: coupons }] =
           await Promise.all([
@@ -157,12 +161,13 @@ export async function getMenuBundle(outletSlug?: string) {
             outlet: outletData as Outlet,
             categories: categories as Category[],
             items: items as MenuItem[],
-            coupons: (coupons || store.coupons) as Coupon[],
+            coupons: (coupons || []) as Coupon[],
           };
         }
       }
-    } catch {
-      // Fallback to local store
+      throw new Error("Unable to load the outlet menu from Supabase.");
+    } catch (error) {
+      throw error;
     }
   }
   return {

@@ -8,9 +8,9 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const { outlet } = await getMenuBundle(params.slug);
+  const { outlet } = await getMenuBundle((await params).slug);
   return {
     title: `${outlet.name} | Order Online — Burger Budds`,
     description: `Order hot & crispy smash burgers, peri-peri crinkle fries, and thick shakes online from ${outlet.name}. Use code FLAT129 for instant savings!`,
@@ -25,10 +25,10 @@ export async function generateMetadata({
 export default async function OrderMenuPage({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
   const { outlet, categories, items, coupons } = await getMenuBundle(
-    params.slug
+    (await params).slug
   );
 
   // Restaurant + Menu JSON-LD Structured Data (PLAN.md section 9)
@@ -75,7 +75,7 @@ export default async function OrderMenuPage({
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
       />
       <OrderMenuClient
         initialOutlet={outlet}

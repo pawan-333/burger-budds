@@ -37,12 +37,24 @@ import { DietBadge } from "@/components/ui/DietBadge";
 import { DEFAULT_OUTLET_SLUG, SEED_OUTLET } from "@/lib/seed-data";
 import { useApp } from "@/context/AppContext";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { MerchantLogin } from "@/components/merchant/MerchantLogin";
 
 export default function MerchantAppPage() {
   const { notifyRealtimeUpdate } = useApp();
 
   // Staff Role & Screen Navigation
   const [staffRole, setStaffRole] = useState<StaffRole>("owner");
+  const [staffAccess, setStaffAccess] = useState<"checking" | "login" | "denied" | "allowed">("checking");
+  const verifyStaffAccess = useCallback(async () => {
+    const sb = getSupabaseBrowserClient();
+    if (!sb) { setStaffAccess(process.env.NODE_ENV === "production" ? "denied" : "allowed"); return; }
+    const { data } = await sb.auth.getUser();
+    if (!data.user) { setStaffAccess("login"); return; }
+    const { data: staff } = await sb.from("staff").select("role").eq("user_id", data.user.id).eq("outlet_id", SEED_OUTLET.id).maybeSingle();
+    if (!staff) { setStaffAccess("denied"); return; }
+    setStaffRole(staff.role as StaffRole); setStaffAccess("allowed");
+  }, []);
+  useEffect(() => { void verifyStaffAccess(); }, [verifyStaffAccess]);
   const [activeScreen, setActiveScreen] = useState<
     "orders" | "menu" | "controls" | "reports"
   >("orders");
@@ -121,6 +133,7 @@ export default function MerchantAppPage() {
   };
 
   const fetchMerchantData = useCallback(async () => {
+    if (staffAccess !== "allowed") return;
     try {
       const [menuRes, ordersRes] = await Promise.all([
         fetch(`/api/menu?outlet=${DEFAULT_OUTLET_SLUG}`, { cache: "no-store" }),
@@ -141,7 +154,7 @@ export default function MerchantAppPage() {
     } catch {
       setConnected(false);
     }
-  }, []);
+  }, [staffAccess]);
 
   useEffect(() => {
     fetchMerchantData();
@@ -419,6 +432,10 @@ export default function MerchantAppPage() {
     .filter((o) => o.status !== "rejected" && o.status !== "cancelled")
     .reduce((sum, o) => sum + o.grand_total, 0);
 
+  if (staffAccess === "checking") return <main className="min-h-screen p-6 bg-surface-page" role="status">Checking staff access…</main>;
+  if (staffAccess === "login") return <MerchantLogin onSuccess={() => void verifyStaffAccess()} />;
+  if (staffAccess === "denied") return <main className="min-h-screen p-6 bg-surface-page space-y-4"><h1 className="text-xl font-bold">Staff access required</h1><p>This account is not authorised for Burger Budds.</p><button className="min-h-[44px] px-4 bg-brand-primary rounded-xs" onClick={async () => { await getSupabaseBrowserClient()?.auth.signOut(); setStaffAccess("login"); }}>Sign in with another email</button></main>;
+
   return (
     <div className="min-h-screen flex flex-col bg-surface-page text-text-primary">
       {/* Top Merchant PWA Bar */}
@@ -489,6 +506,7 @@ export default function MerchantAppPage() {
             <button
               type="button"
               onClick={handleSimulateNewOrder}
+              hidden={process.env.NODE_ENV === "production" || !!getSupabaseBrowserClient()}
               className="min-h-[40px] px-3 py-1.5 rounded-xs bg-surface-base text-text-primary hover:bg-brand-primary font-extrabold text-xs inline-flex items-center gap-1.5 shadow-1"
             >
               <BellRing className="w-3.5 h-3.5 text-status-error" />
@@ -498,6 +516,7 @@ export default function MerchantAppPage() {
             {/* Role Selector */}
             <select
               value={staffRole}
+              disabled={!!getSupabaseBrowserClient()}
               onChange={(e) => setStaffRole(e.target.value as StaffRole)}
               aria-label="Select staff role"
               className="min-h-[40px] px-2.5 rounded-xs bg-brand-secondaryDark text-text-onSecondary text-xs font-bold border border-text-onSecondary/20"

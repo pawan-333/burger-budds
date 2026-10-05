@@ -6,18 +6,34 @@ import {
   writeLocalStore,
 } from "@/lib/server-db";
 import { OrderStatus } from "@/types/database";
+import { getSupabaseServerClient, getVerifiedUser } from "@/lib/supabase/server";
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const orderId = params.id;
+    const orderId = (await params).id;
     const body = await req.json();
     const nextStatus = body.status as OrderStatus;
     const actor: string = body.actor || "merchant";
     const prepTimeMin: number | undefined = body.prepTimeMin;
     const rejectReason: string | undefined = body.rejectReason;
+    const sb = getSupabaseAdminClient();
+    if (sb) {
+      const user = await getVerifiedUser();
+      if (!user) return NextResponse.json({ error: "Please log in." }, { status: 401 });
+      const session = (await getSupabaseServerClient())!;
+      const { data: visible } = await session.from("orders").select("id").eq("id", orderId).maybeSingle();
+      if (!visible) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      const { data, error } = await sb.rpc("transition_order", {
+        target_order_id: visible.id, acting_user: user.id, next_status: nextStatus,
+        preparation_minutes: prepTimeMin || 20, rejection_reason: rejectReason || null,
+      });
+      if (error) return NextResponse.json({ error: "Order status change was not allowed. Please refresh and try again." }, { status: 400 });
+      return NextResponse.json({ order: data });
+    }
+    if (process.env.NODE_ENV === "production") return NextResponse.json({ error: "Ordering service is not configured." }, { status: 503 });
 
     if (!nextStatus) {
       return NextResponse.json(
@@ -98,25 +114,6 @@ export async function PATCH(
 
     store.orders[idx] = order;
     writeLocalStore(store);
-
-    const sb = getSupabaseAdminClient();
-    if (sb) {
-      try {
-        await sb
-          .from("orders")
-          .update({
-            status: order.status,
-            prep_time_min: order.prep_time_min,
-            reject_reason: order.reject_reason,
-            accepted_at: order.accepted_at,
-            delivered_at: order.delivered_at,
-            payment_status: order.payment_status,
-          })
-          .eq("order_no", order.order_no);
-      } catch {
-        // Ignore if not in remote DB
-      }
-    }
 
     return NextResponse.json({ order });
   } catch (err) {
