@@ -12,8 +12,13 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const outletSlug = req.nextUrl.searchParams.get("outlet") || undefined;
-  const bundle = await getMenuBundle(outletSlug);
-  return NextResponse.json(bundle);
+  try {
+    const bundle = await getMenuBundle(outletSlug);
+    return NextResponse.json(bundle);
+  } catch (error) {
+    const missing = typeof error === "object" && error !== null && "code" in error && error.code === "PGRST116";
+    return NextResponse.json({ error: missing ? "This store is not set up yet. Please choose another store." : "Unable to load the menu. Please try again shortly." }, { status: missing ? 404 : 503 });
+  }
 }
 
 export async function PATCH(req: NextRequest) {
@@ -26,8 +31,10 @@ export async function PATCH(req: NextRequest) {
       const { data: memberships } = PUBLIC_MERCHANT_ACCESS
         ? { data: [{ outlet_id: (await getMenuBundle()).outlet.id }] }
         : await session.from("staff").select("outlet_id").eq("user_id", user!.id);
-      if (!memberships?.length) return NextResponse.json({ error: "Staff access required." }, { status: 403 });
-      const outletIds = memberships.map((membership) => membership.outlet_id);
+      const { data: admin } = await session.from("super_admins").select("user_id").eq("user_id", user!.id).maybeSingle();
+      if (!admin && !memberships?.length) return NextResponse.json({ error: "Staff access required." }, { status: 403 });
+      const { data: activeStores } = await session.from("outlets").select("id").eq("is_active", true);
+      const outletIds = (activeStores || []).filter(store => admin || memberships?.some(member => member.outlet_id === store.id)).map(store => store.id);
       if (body.action === "update_item" && body.itemId) {
         const patch: Record<string, unknown> = {};
         if (typeof body.is_available === "boolean") patch.is_available = body.is_available;
@@ -44,7 +51,7 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ ok: true });
       }
       if (body.action === "update_outlet") {
-        const { outlet } = await getMenuBundle();
+        const { outlet } = await getMenuBundle(body.outletSlug);
         const patch: Record<string, unknown> = {};
         if (typeof body.is_open === "boolean") patch.is_open = body.is_open;
         if (Number.isInteger(body.prep_time_min) && body.prep_time_min > 0 && body.prep_time_min <= 120) patch.prep_time_min = body.prep_time_min;

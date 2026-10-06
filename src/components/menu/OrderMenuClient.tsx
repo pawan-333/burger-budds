@@ -47,6 +47,7 @@ export function OrderMenuClient({
   initialCoupons,
 }: OrderMenuClientProps) {
   const {
+    selectOutlet,
     cartId,
     orderType,
     setOrderType,
@@ -60,6 +61,7 @@ export function OrderMenuClient({
     setSearchQuery,
   } = useApp();
 
+  useEffect(() => { selectOutlet(initialOutlet); }, [initialOutlet, selectOutlet]);
   const [outlet, setOutlet] = useState<Outlet>(initialOutlet);
   const [categories] = useState<Category[]>(initialCategories);
   const [items, setItems] = useState<MenuItem[]>(initialItems);

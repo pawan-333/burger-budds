@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 
-function loadRoute({ guestHash = null, user = null } = {}) {
+function loadRoute({ guestHash = null, user = null, publicAccess = true, membership = null } = {}) {
   const calls = [];
   const order = { id: 'test-order', status: 'placed', guest_session_hash: 'private', items: [{ qty: 1 }], events: [] };
   const sb = {
@@ -13,17 +13,17 @@ function loadRoute({ guestHash = null, user = null } = {}) {
       order.status = name === 'cancel_guest_order' ? 'cancelled' : args.next_status;
       return { data: { ...order }, error: null };
     },
-    from: () => {
-      const query = { select: () => query, eq: () => query, single: async () => ({ data: order, error: null }) };
+    from: (table) => {
+      const query = { select: () => query, eq: () => query, single: async () => ({ data: order, error: null }), maybeSingle: async () => ({ data: table === 'super_admins' ? null : table === 'staff' ? membership : { ...order, outlet_id: 'store-a' }, error: null }) };
       return query;
     },
   };
   const modules = {
     'next/server': { NextResponse: { json: (data, options) => ({ data, status: options?.status || 200 }) } },
     '@/lib/server-db': { getSupabaseAdminClient: () => sb },
-    '@/lib/supabase/server': { getVerifiedUser: async () => user },
+    '@/lib/supabase/server': { getVerifiedUser: async () => user, getSupabaseServerClient: async () => sb },
     '@/lib/guest-session': { getGuestOrderHash: async () => guestHash, publicOrder: ({ guest_session_hash, ...visible }) => visible },
-    '@/lib/site-access': { PUBLIC_MERCHANT_ACCESS: true },
+    '@/lib/site-access': { PUBLIC_MERCHANT_ACCESS: publicAccess },
   };
   const source = fs.readFileSync('src/app/api/orders/[id]/status/route.ts', 'utf8');
   const scope = { exports: {}, require: (name) => modules[name], process, console };
@@ -48,6 +48,27 @@ test('merchant UI accept action reaches public merchant RPC without authenticati
   assert.equal(route.calls[0].name, 'transition_public_order');
   assert.equal(route.calls[0].args.next_status, 'accepted');
   assert.equal(route.calls[0].args.preparation_minutes, 15);
+});
+
+test('private merchant access rejects unauthenticated order updates', async () => {
+  const route = loadRoute({ publicAccess: false });
+  const result = await route.patch({ actor: 'merchant', status: 'accepted' });
+  assert.equal(result.status, 403);
+  assert.equal(route.calls.length, 0);
+});
+
+test('merchant cannot update an order without membership of its store', async () => {
+  const route = loadRoute({ publicAccess: false, user: { id: 'other-store-merchant' } });
+  const result = await route.patch({ actor: 'merchant', status: 'accepted' });
+  assert.equal(result.status, 403);
+  assert.equal(route.calls.length, 0);
+});
+
+test('assigned merchant can update its store order', async () => {
+  const route = loadRoute({ publicAccess: false, user: { id: 'store-merchant' }, membership: { outlet_id: 'store-a' } });
+  const result = await route.patch({ actor: 'merchant', status: 'accepted' });
+  assert.equal(result.status, 200);
+  assert.equal(route.calls[0].name, 'transition_order');
 });
 
 test('guest cancellation preserves items and hides private cookie hash', async () => {

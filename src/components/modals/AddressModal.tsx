@@ -85,6 +85,7 @@ const DeliveryMap = dynamic(() => import("@/components/maps/DeliveryMap"), { ssr
 
 export function AddressModal() {
   const {
+    activeOutlet,
     isAddressModalOpen,
     closeAddressModal,
     savedAddresses,
@@ -173,7 +174,7 @@ export function AddressModal() {
           body: JSON.stringify({
             lat,
             lng,
-            outlet: SEED_OUTLET.slug,
+            outlet: activeOutlet.slug,
           }),
         });
         const data: ServiceabilityResult = await res.json();
@@ -184,7 +185,7 @@ export function AddressModal() {
         setCheckingService(false);
       }
     },
-    []
+    [activeOutlet.slug]
   );
 
   useEffect(() => {
@@ -192,6 +193,11 @@ export function AddressModal() {
       checkPinServiceability(pinLat, pinLng);
     }
   }, [mode, pinLat, pinLng, checkPinServiceability]);
+
+  useEffect(() => {
+    setPinLat(activeOutlet.lat); setPinLng(activeOutlet.lng);
+    setLocality(activeOutlet.area); setServiceability(null);
+  }, [activeOutlet.id, activeOutlet.lat, activeOutlet.lng, activeOutlet.area]);
 
   const handleMapClickOrDrag = (e: React.MouseEvent<HTMLDivElement>) => {
     const box = mapBoxRef.current;
@@ -201,8 +207,8 @@ export function AddressModal() {
     const relY = (e.clientY - rect.top) / rect.height; // 0..1
 
     // Map center is SEED_OUTLET (26.2183, 78.1828), span ~0.14 deg (~15 km)
-    const newLat = Number((SEED_OUTLET.lat + (0.5 - relY) * 0.12).toFixed(5));
-    const newLng = Number((SEED_OUTLET.lng + (relX - 0.5) * 0.14).toFixed(5));
+    const newLat = Number((activeOutlet.lat + (0.5 - relY) * 0.12).toFixed(5));
+    const newLng = Number((activeOutlet.lng + (relX - 0.5) * 0.14).toFixed(5));
 
     setPinLat(newLat);
     setPinLng(newLng);
@@ -292,11 +298,11 @@ export function AddressModal() {
   // Compute pin visual position (0..100%) on the interactive map canvas
   const pinLeftPercent = Math.min(
     92,
-    Math.max(8, 50 + ((pinLng - SEED_OUTLET.lng) / 0.14) * 100)
+    Math.max(8, 50 + ((pinLng - activeOutlet.lng) / 0.14) * 100)
   );
   const pinTopPercent = Math.min(
     90,
-    Math.max(10, 50 - ((pinLat - SEED_OUTLET.lat) / 0.12) * 100)
+    Math.max(10, 50 - ((pinLat - activeOutlet.lat) / 0.12) * 100)
   );
 
   const filteredPresets = GWALIOR_LOCATIONS.filter(
@@ -327,7 +333,7 @@ export function AddressModal() {
                 : "Pin Delivery Location & Address Details"}
             </h2>
             <p className="text-xs text-text-onSecondary/85">
-              Delivering from {SEED_OUTLET.name} ({SEED_OUTLET.delivery_radius_km}{" "}
+              Delivering from {activeOutlet.name} ({activeOutlet.delivery_radius_km}{" "}
               km zone)
             </p>
           </div>
@@ -532,7 +538,7 @@ export function AddressModal() {
                 })}
               </div>
 
-              <DeliveryMap lat={pinLat} lng={pinLng} outletLat={SEED_OUTLET.lat} outletLng={SEED_OUTLET.lng} radiusKm={SEED_OUTLET.delivery_radius_km} onSelect={(lat, lng) => { setPinLat(lat); setPinLng(lng); }} />
+              <DeliveryMap lat={pinLat} lng={pinLng} outletLat={activeOutlet.lat} outletLng={activeOutlet.lng} radiusKm={activeOutlet.delivery_radius_km} onSelect={(lat, lng) => { setPinLat(lat); setPinLng(lng); }} />
 
               {/* Serviceability Status Banner */}
               {checkingService ? (
@@ -553,7 +559,7 @@ export function AddressModal() {
                     <p className="text-xs opacity-90">
                       This pin is {serviceability.distanceKm} km away (outside
                       our {serviceability.maxRadiusKm} km delivery radius around
-                      Vinay Nagar, Gwalior). Move the pin closer to proceed.
+                      {activeOutlet.area}). Move the pin closer to proceed.
                     </p>
                   </div>
                 </div>

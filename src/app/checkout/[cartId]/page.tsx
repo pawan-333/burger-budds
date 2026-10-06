@@ -38,6 +38,7 @@ import {
 export default function CheckoutPage() {
   const router = useRouter();
   const {
+    activeOutlet,
     orderType,
     setOrderType,
     cartItems,
@@ -77,14 +78,14 @@ export default function CheckoutPage() {
 
   // Fetch live menu & coupons
   useEffect(() => {
-    fetch(`/api/menu?outlet=${DEFAULT_OUTLET_SLUG}`, { cache: "no-store" })
+    fetch(`/api/menu?outlet=${activeOutlet.slug}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data.items)) setMenuItems(data.items);
         if (Array.isArray(data.coupons)) setCoupons(data.coupons);
       })
       .catch(() => {});
-  }, []);
+  }, [activeOutlet.slug]);
 
   // Recompute server-side bill whenever cart/coupon/wallet/address/orderType changes
   const fetchServerBill = useCallback(async () => {
@@ -95,8 +96,9 @@ export default function CheckoutPage() {
     setLoadingBill(true);
     try {
       const payload = {
-        outletSlug: DEFAULT_OUTLET_SLUG,
-        orderType,
+        outletSlug: activeOutlet.slug,
+        activeOutlet,
+    orderType,
         couponCode,
         useWallet,
         walletBalance: user?.wallet_balance ?? 150,
@@ -124,6 +126,7 @@ export default function CheckoutPage() {
     }
   }, [
     cartItems,
+    activeOutlet,
     orderType,
     couponCode,
     useWallet,
@@ -163,10 +166,11 @@ export default function CheckoutPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           idempotencyKey,
-          outletSlug: DEFAULT_OUTLET_SLUG,
+          outletSlug: activeOutlet.slug,
           customerName: user?.name || "Guest Customer",
           customerPhone: orderType === "takeaway" ? pickupPhone : selectedAddress?.phone,
-          orderType,
+          activeOutlet,
+    orderType,
           address: orderType === "delivery" ? selectedAddress : null,
           couponCode,
           useWallet,
@@ -211,11 +215,11 @@ export default function CheckoutPage() {
         {/* Top Back Link */}
         <div className="mb-4 flex items-center justify-between">
           <Link
-            href={`/order/${DEFAULT_OUTLET_SLUG}`}
+            href={`/order/${activeOutlet.slug}`}
             className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-extrabold text-brand-secondary hover:underline"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to {SEED_OUTLET.name} Menu</span>
+            <span>Back to {activeOutlet.name} Menu</span>
           </Link>
 
           <div className="inline-flex rounded-xs border border-border-muted bg-surface-base p-0.5">
@@ -255,7 +259,7 @@ export default function CheckoutPage() {
               fries yet!
             </p>
             <Link
-              href={`/order/${DEFAULT_OUTLET_SLUG}`}
+              href={`/order/${activeOutlet.slug}`}
               className="min-h-[44px] px-6 py-2.5 rounded-xs bg-brand-primary hover:bg-brand-primaryHover text-text-onPrimary font-extrabold text-sm inline-flex items-center gap-2 shadow-1"
             >
               <span>Browse Burger Budds Menu</span>
@@ -279,7 +283,7 @@ export default function CheckoutPage() {
                     1. Items Added ({cartItems.reduce((s, i) => s + i.qty, 0)})
                   </h1>
                   <span className="text-xs font-bold text-brand-secondary">
-                    {SEED_OUTLET.area}
+                    {activeOutlet.area}
                   </span>
                 </div>
 
@@ -364,7 +368,7 @@ export default function CheckoutPage() {
                 {/* Action Buttons: "Add More Items" + "Add Special Instructions" */}
                 <div className="pt-2 flex flex-wrap items-center gap-3 border-t border-border-subtle">
                   <Link
-                    href={`/order/${DEFAULT_OUTLET_SLUG}`}
+                    href={`/order/${activeOutlet.slug}`}
                     className="min-h-[40px] px-3.5 py-2 rounded-xs bg-surface-raised hover:bg-brand-secondarySoft text-brand-secondary font-extrabold text-xs inline-flex items-center gap-1.5 border border-border-muted transition duration-fast"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -603,13 +607,13 @@ export default function CheckoutPage() {
                 {orderType === "takeaway" ? (
                   <div className="p-3.5 rounded-xs bg-surface-raised border border-border-subtle text-xs space-y-1">
                     <p className="font-extrabold text-text-primary">
-                      Self Pickup at {SEED_OUTLET.name}
+                      Self Pickup at {activeOutlet.name}
                     </p>
-                    <p className="text-text-secondary">{SEED_OUTLET.address}</p>
+                    <p className="text-text-secondary">{activeOutlet.address}</p>
                     <label htmlFor="pickup-phone" className="block font-bold pt-2">Mobile number for pickup updates</label>
                     <input id="pickup-phone" type="tel" autoComplete="tel-national" inputMode="numeric" maxLength={10} value={pickupPhone} onChange={(event) => setPickupPhone(event.target.value.replace(/\D/g, "").slice(0, 10))} className="w-full min-h-[44px] rounded-xs border border-border-muted px-3 text-sm" placeholder="10-digit mobile number" />
                     <p className="font-bold text-status-open">
-                      Zero Delivery Fee • Ready in ~{SEED_OUTLET.prep_time_min}{" "}
+                      Zero Delivery Fee • Ready in ~{activeOutlet.prep_time_min}{" "}
                       Mins
                     </p>
                   </div>

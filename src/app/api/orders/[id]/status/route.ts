@@ -49,8 +49,13 @@ export async function PATCH(
         return NextResponse.json({ error: "Order can only be cancelled before the restaurant accepts it, from the browser that placed it." }, { status: 400 });
       }
       const session = (await getSupabaseServerClient())!;
-      const { data: visible } = await session.from("orders").select("id").eq("id", orderId).maybeSingle();
+      const { data: visible } = await session.from("orders").select("id, outlet_id").eq("id", orderId).maybeSingle();
       if (!visible) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      if (actor === "merchant") {
+        const { data: membership } = await session.from("staff").select("outlet_id").eq("user_id", user.id).eq("outlet_id", visible.outlet_id).maybeSingle();
+        const { data: admin } = await session.from("super_admins").select("user_id").eq("user_id", user.id).maybeSingle();
+        if (!membership && !admin) return NextResponse.json({ error: "Store staff access required." }, { status: 403 });
+      }
       const { data, error } = await sb.rpc("transition_order", {
         target_order_id: visible.id, acting_user: user.id, next_status: nextStatus,
         preparation_minutes: prepTimeMin || 20, rejection_reason: rejectReason || null,

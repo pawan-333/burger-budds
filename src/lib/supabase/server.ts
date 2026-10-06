@@ -1,6 +1,8 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { isSupabaseConfigured } from "./client";
+import WebSocket from "ws";
+import type { WebSocketLikeConstructor } from "@supabase/realtime-js";
 
 export async function getSupabaseServerClient() {
   if (!isSupabaseConfigured()) return null;
@@ -9,6 +11,7 @@ export async function getSupabaseServerClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      realtime: { transport: WebSocket as unknown as WebSocketLikeConstructor },
       cookies: {
         getAll: () => cookieStore.getAll(),
         setAll: (values: { name: string; value: string; options: CookieOptions }[]) => {

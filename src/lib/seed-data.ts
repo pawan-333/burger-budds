@@ -37,6 +37,20 @@ export const SEED_OUTLET: Outlet = {
   delivery_enabled: true,
 };
 
+export const BADAGAON_OUTLET: Outlet = {
+  ...SEED_OUTLET,
+  id: "11111111-1111-1111-1111-111111111102",
+  slug: "burger-budds-badagaon-gwalior",
+  name: "Burger Budds — Badagaon, Gwalior",
+  address: "Badagaon, Gwalior, Madhya Pradesh",
+  area: "Badagaon, Gwalior",
+  lat: 26.232214,
+  lng: 78.2708995,
+  phone: "",
+  is_open: true,
+  delivery_enabled: true,
+  timings: { open: "", close: "" },
+};
 export const SEED_CATEGORIES: Category[] = [
   {
     id: "22222222-2222-2222-2222-222222222201",

@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       area: outlet.area,
       message: serviceable
         ? `Delivering in ~${etaMins} mins (${distanceKm} km from ${outlet.area})`
-        : "Location is not serviceable — outside our 5 km delivery zone around Vinay Nagar, Gwalior.",
+        : `Location is not serviceable — outside our ${maxRadiusKm} km delivery zone around ${outlet.area}.`,
     };
 
     return NextResponse.json(result);

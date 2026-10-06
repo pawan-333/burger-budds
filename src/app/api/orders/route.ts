@@ -34,6 +34,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ orders: (data || []).map(publicOrder) });
     }
     const user = await getVerifiedUser();
+    if (req.nextUrl.searchParams.get("merchant") === "1") {
+      if (!user) return NextResponse.json({ error: "Please log in." }, { status: 401 });
+      const slug = req.nextUrl.searchParams.get("outlet");
+      if (!slug) return NextResponse.json({ error: "Store is required." }, { status: 400 });
+      const { data: outlet } = await session.from("outlets").select("id").eq("slug", slug).eq("is_active", true).maybeSingle();
+      if (!outlet) return NextResponse.json({ error: "Store not found." }, { status: 404 });
+      const { data: membership } = await session.from("staff").select("outlet_id").eq("user_id", user.id).eq("outlet_id", outlet.id).maybeSingle();
+      const { data: admin } = await session.from("super_admins").select("user_id").eq("user_id", user.id).maybeSingle();
+      if (!membership && !admin) return NextResponse.json({ error: "Store staff access required." }, { status: 403 });
+      const { data, error } = await session.from("orders").select("*, items:order_items(*), events:order_events(*)").eq("outlet_id", outlet.id).order("placed_at", { ascending: false });
+      if (error) return NextResponse.json({ error: "Unable to load orders." }, { status: 500 });
+      return NextResponse.json({ orders: (data || []).map(publicOrder) });
+    }
     const guestHash = !user ? await getGuestOrderHash() : null;
     if (!user && !guestHash) return orderId ? NextResponse.json({ error: "Order not found" }, { status: 404 }) : NextResponse.json({ orders: [] });
     let query = (user ? session : getSupabaseAdminClient()!).from("orders").select("*, items:order_items(*), events:order_events(*)").order("placed_at", { ascending: false });
@@ -148,7 +161,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             error:
-              "Location is not serviceable. Please choose an address within 5 km of Burger Budds Vinay Nagar.",
+              `Location is not serviceable. Please choose an address within ${outlet.delivery_radius_km} km of ${outlet.name}.`,
           },
           { status: 400 }
         );

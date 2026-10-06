@@ -28,6 +28,7 @@ export function GlobalHeader({ totalMenuItems = 10 }: GlobalHeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
   const {
+    activeOutlet,
     cartId,
     totalItemsCount,
     cartSubtotal,
@@ -77,7 +78,7 @@ export function GlobalHeader({ totalMenuItems = 10 }: GlobalHeaderProps) {
         setIsListening(false);
         setVoiceMessage(null);
         if (!pathname.startsWith("/order")) {
-          router.push(`/order/${DEFAULT_OUTLET_SLUG}`);
+          router.push(`/order/${activeOutlet.slug}`);
         }
       };
 
@@ -101,7 +102,7 @@ export function GlobalHeader({ totalMenuItems = 10 }: GlobalHeaderProps) {
     { href: "/", label: "Home" },
     { href: "/about", label: "About Us" },
     { href: "/stores", label: "Store Locator" },
-    { href: `/order/${DEFAULT_OUTLET_SLUG}`, label: "Order Now" },
+    { href: `/order/${activeOutlet.slug}`, label: "Order Now" },
     { href: "/gallery", label: "Gallery" },
   ];
 
@@ -123,7 +124,7 @@ export function GlobalHeader({ totalMenuItems = 10 }: GlobalHeaderProps) {
 
         {/* Brand Logo */}
         <Link
-          href={`/order/${DEFAULT_OUTLET_SLUG}`}
+          href={`/order/${activeOutlet.slug}`}
           className="flex items-center gap-2.5 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary rounded-xs py-1"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -152,7 +153,7 @@ export function GlobalHeader({ totalMenuItems = 10 }: GlobalHeaderProps) {
               onChange={(e) => {
                 setSearchQuery(e.target.value);
                 if (!pathname.startsWith("/order")) {
-                  router.push(`/order/${DEFAULT_OUTLET_SLUG}`);
+                  router.push(`/order/${activeOutlet.slug}`);
                 }
               }}
               placeholder={`Search this outlet's menu — ${totalMenuItems} items`}
@@ -376,7 +377,7 @@ export function GlobalHeader({ totalMenuItems = 10 }: GlobalHeaderProps) {
 
             <div className="pt-6 border-t border-text-onSecondary/15 space-y-3">
               <Link
-                href={`/order/${DEFAULT_OUTLET_SLUG}`}
+                href={`/order/${activeOutlet.slug}`}
                 className="w-full min-h-[44px] rounded-xs border-2 border-text-onSecondary text-text-onSecondary font-bold text-sm flex items-center justify-center hover:bg-brand-secondaryDark transition duration-fast"
               >
                 Order Online

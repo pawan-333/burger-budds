@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
 import { createClient } from "@supabase/supabase-js";
+import WebSocket from "ws";
+import type { WebSocketLikeConstructor } from "@supabase/realtime-js";
 import {
   Outlet,
   Category,
@@ -12,6 +14,7 @@ import {
 } from "@/types/database";
 import {
   SEED_OUTLET,
+  BADAGAON_OUTLET,
   SEED_CATEGORIES,
   SEED_ITEMS,
   SEED_COUPONS,
@@ -83,6 +86,7 @@ export function getSupabaseAdminClient() {
   if (!key) throw new Error("SUPABASE_SERVICE_ROLE_KEY is required on the server.");
   return createClient(url, key, {
     auth: { persistSession: false },
+    realtime: { transport: WebSocket as unknown as WebSocketLikeConstructor },
   });
 }
 
@@ -131,15 +135,22 @@ export async function getMenuBundle(outletSlug?: string) {
     ? getInitialStore() : readLocalStore();
   const sb = isSupabaseConfigured() ? createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { persistSession: false } }
+    { auth: { persistSession: false }, realtime: { transport: WebSocket as unknown as WebSocketLikeConstructor } }
   ) : null;
   if (sb) {
     try {
-      const { data: outletData, error: outletError } = await sb
+      let { data: outletData, error: outletError } = await sb
         .from("outlets")
         .select("*")
         .eq("slug", outletSlug || store.outlet.slug)
+        .eq("is_active", true)
         .single();
+      // Legacy databases have no archive flag until migration 007 is applied.
+      if (outletError?.code === "42703" && outletError.message.includes("is_active")) {
+        const legacy = await sb.from("outlets").select("*").eq("slug", outletSlug || store.outlet.slug).single();
+        outletData = legacy.data;
+        outletError = legacy.error;
+      }
       if (outletError) throw outletError;
       if (outletData) {
         const [{ data: categories }, { data: items }, { data: coupons }] =
@@ -169,6 +180,16 @@ export async function getMenuBundle(outletSlug?: string) {
     } catch (error) {
       throw error;
     }
+  }
+  if (outletSlug === BADAGAON_OUTLET.slug) {
+    const remap = (value: unknown, key = ""): unknown => {
+      if (key === "outlet_id") return BADAGAON_OUTLET.id;
+      if (typeof value === "string" && (key === "id" || key.endsWith("_id"))) return `badagaon-${value}`;
+      if (Array.isArray(value)) return value.map(entry => remap(entry));
+      if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([field, entry]) => [field, remap(entry, field)]));
+      return value;
+    };
+    return { outlet: BADAGAON_OUTLET, categories: remap(store.categories) as Category[], items: remap(store.items) as MenuItem[], coupons: store.coupons };
   }
   return {
     outlet: store.outlet,

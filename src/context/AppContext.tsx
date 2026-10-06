@@ -15,11 +15,13 @@ import {
   ItemVariant,
   MenuItem,
   OrderType,
+  Outlet,
   UserProfile,
 } from "@/types/database";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { verifyEmailOtp } from "@/lib/supabase/email-auth";
 
+import { SEED_OUTLET } from "@/lib/seed-data";
 interface AddToCartInput {
   item: MenuItem;
   variant?: ItemVariant | null;
@@ -29,6 +31,8 @@ interface AddToCartInput {
 }
 
 interface AppContextValue {
+  activeOutlet: Outlet;
+  selectOutlet: (outlet: Outlet) => void;
   cartId: string;
   orderType: OrderType;
   setOrderType: (type: OrderType) => void;
@@ -114,6 +118,7 @@ const DEFAULT_SAVED_ADDRESSES: Address[] = [
 ];
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const [activeOutlet, setActiveOutlet] = useState<Outlet>(SEED_OUTLET);
   const [cartId, setCartId] = useState<string>("bb-cart-live");
   const [orderType, setOrderType] = useState<OrderType>("delivery");
   const [cartItems, setCartItems] = useState<CartLineItem[]>([]);
@@ -137,12 +142,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [hydrated, setHydrated] = useState<boolean>(false);
+  const selectOutlet = useCallback((next: Outlet) => {
+    if (!hydrated) return;
+    if (activeOutlet.id !== next.id) { setCartItems([]); setCouponCode(null); setSpecialInstructions(""); }
+    setActiveOutlet(previous => previous.id === next.id ? previous : next);
+  }, [activeOutlet.id, hydrated]);
 
   useEffect(() => {
     try {
       const rawCart = localStorage.getItem(STORAGE_KEYS.CART);
       if (rawCart) {
         const parsed = JSON.parse(rawCart);
+        if (parsed.activeOutlet?.slug) setActiveOutlet(parsed.activeOutlet);
         if (parsed.cartId) setCartId(parsed.cartId);
         if (Array.isArray(parsed.cartItems)) setCartItems(parsed.cartItems);
         if (parsed.orderType) setOrderType(parsed.orderType);
@@ -209,6 +220,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem(
         STORAGE_KEYS.CART,
         JSON.stringify({
+          activeOutlet,
           cartId,
           orderType,
           cartItems,
@@ -219,7 +231,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Ignore
     }
-  }, [cartId, orderType, cartItems, couponCode, specialInstructions, hydrated]);
+  }, [activeOutlet, cartId, orderType, cartItems, couponCode, specialInstructions, hydrated]);
 
   const notifyRealtimeUpdate = useCallback(
     (
@@ -577,6 +589,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AppContextValue>(
     () => ({
+      activeOutlet, selectOutlet,
       cartId,
       orderType,
       setOrderType,
@@ -621,6 +634,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notifyRealtimeUpdate,
     }),
     [
+      activeOutlet, selectOutlet,
       cartId,
       orderType,
       cartItems,

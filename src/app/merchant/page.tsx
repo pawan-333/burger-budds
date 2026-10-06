@@ -39,22 +39,26 @@ import { useApp } from "@/context/AppContext";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { MerchantLogin } from "@/components/merchant/MerchantLogin";
 import { PUBLIC_MERCHANT_ACCESS } from "@/lib/site-access";
+import { verifyMerchantAccess } from "@/lib/merchant-access";
 
 export default function MerchantAppPage() {
   const { notifyRealtimeUpdate } = useApp();
 
   // Staff Role & Screen Navigation
+  const [merchantSlug, setMerchantSlug] = useState(DEFAULT_OUTLET_SLUG);
   const [staffRole, setStaffRole] = useState<StaffRole>("owner");
   const [staffAccess, setStaffAccess] = useState<"checking" | "login" | "denied" | "allowed">("checking");
+  const [accessMessage, setAccessMessage] = useState("");
   const verifyStaffAccess = useCallback(async () => {
+    setStaffAccess("checking");
     if (PUBLIC_MERCHANT_ACCESS) { setStaffAccess("allowed"); return; }
     const sb = getSupabaseBrowserClient();
-    if (!sb) { setStaffAccess(process.env.NODE_ENV === "production" ? "denied" : "allowed"); return; }
-    const { data } = await sb.auth.getUser();
-    if (!data.user) { setStaffAccess("login"); return; }
-    const { data: staff } = await sb.from("staff").select("role").eq("user_id", data.user.id).eq("outlet_id", SEED_OUTLET.id).maybeSingle();
-    if (!staff) { setStaffAccess("denied"); return; }
-    setStaffRole(staff.role as StaffRole); setStaffAccess("allowed");
+    if (!sb) { setAccessMessage("Merchant login is not configured. Contact your administrator."); setStaffAccess("denied"); return; }
+    const result = await verifyMerchantAccess(sb, new URLSearchParams(window.location.search).get("outlet"));
+    if (result.status === "admin") { window.location.assign("/admin"); return; }
+    if (result.status === "allowed") { setMerchantSlug(result.slug); setStaffRole(result.role); }
+    if (result.status === "denied") setAccessMessage(result.message);
+    setStaffAccess(result.status);
   }, []);
   useEffect(() => { void verifyStaffAccess(); }, [verifyStaffAccess]);
   const [activeScreen, setActiveScreen] = useState<
@@ -139,8 +143,8 @@ export default function MerchantAppPage() {
     if (staffAccess !== "allowed") return;
     try {
       const [menuRes, ordersRes] = await Promise.all([
-        fetch(`/api/menu?outlet=${DEFAULT_OUTLET_SLUG}`, { cache: "no-store" }),
-        fetch("/api/orders?merchant=1", { cache: "no-store" }),
+        fetch(`/api/menu?outlet=${encodeURIComponent(merchantSlug)}`, { cache: "no-store" }),
+        fetch(`/api/orders?merchant=1&outlet=${encodeURIComponent(merchantSlug)}`, { cache: "no-store" }),
       ]);
       if (menuRes.ok) {
         const menuData = await menuRes.json();
@@ -157,7 +161,7 @@ export default function MerchantAppPage() {
     } catch {
       setConnected(false);
     }
-  }, [staffAccess]);
+  }, [staffAccess, merchantSlug]);
 
   useEffect(() => {
     fetchMerchantData();
@@ -329,7 +333,7 @@ export default function MerchantAppPage() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        action: "update_outlet",
+        action: "update_outlet", outletSlug: merchantSlug,
         ...patch,
       }),
     });
@@ -347,7 +351,7 @@ export default function MerchantAppPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        outletSlug: DEFAULT_OUTLET_SLUG,
+        outletSlug: merchantSlug,
         customerName: "Vikramaditya Scindia",
         customerPhone: "+91 98260 77889",
         orderType: "delivery",
@@ -445,7 +449,7 @@ export default function MerchantAppPage() {
 
   if (staffAccess === "checking") return <main className="min-h-screen p-6 bg-surface-page" role="status">Checking staff access…</main>;
   if (staffAccess === "login") return <MerchantLogin onSuccess={() => void verifyStaffAccess()} />;
-  if (staffAccess === "denied") return <main className="min-h-screen p-6 bg-surface-page space-y-4"><h1 className="text-xl font-bold">Staff access required</h1><p>This account is not authorised for Burger Budds.</p><button className="min-h-[44px] px-4 bg-brand-primary rounded-xs" onClick={async () => { await getSupabaseBrowserClient()?.auth.signOut(); setStaffAccess("login"); }}>Sign in with another email</button></main>;
+  if (staffAccess === "denied") return <main className="min-h-screen p-6 bg-surface-page space-y-4"><h1 className="text-xl font-bold">Staff access required</h1><p role="alert">{accessMessage}</p><button className="min-h-[44px] px-4 bg-brand-primary rounded-xs" onClick={() => void verifyStaffAccess()}>Retry access check</button><button className="min-h-[44px] px-4 bg-brand-primary rounded-xs" onClick={async () => { await getSupabaseBrowserClient()?.auth.signOut(); setStaffAccess("login"); }}>Sign in with another email</button></main>;
 
   return (
     <div className="min-h-screen flex flex-col bg-surface-page text-text-primary">
@@ -523,6 +527,8 @@ export default function MerchantAppPage() {
               <span>+ Simulate New Order</span>
             </button>}
 
+            <button type="button" className="min-h-[44px] px-3 text-xs font-bold" onClick={async () => { await getSupabaseBrowserClient()?.auth.signOut(); setOrders([]); setItems([]); setCategories([]); setStaffAccess("login"); }}>Sign out</button>
+            {staffRole === "owner" && <Link href="/admin" className="min-h-[44px] px-3 py-2 font-bold text-xs">Super Admin</Link>}
             {/* Role Selector */}
             <select
               value={staffRole}
@@ -537,7 +543,7 @@ export default function MerchantAppPage() {
             </select>
 
             <Link
-              href={`/order/${DEFAULT_OUTLET_SLUG}`}
+              href={`/order/${merchantSlug}`}
               className="min-h-[40px] px-3 py-1.5 rounded-xs bg-brand-secondaryDark hover:bg-surface-dark text-text-onSecondary text-xs font-bold inline-flex items-center gap-1"
             >
               <span>Customer Site</span>
