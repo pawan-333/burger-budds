@@ -29,7 +29,7 @@ import { DietBadge } from "@/components/ui/DietBadge";
 import { MenuItemCard } from "@/components/menu/MenuItemCard";
 import { ItemDetailModal } from "@/components/modals/ItemDetailModal";
 import { GlobalHeader } from "@/components/layout/GlobalHeader";
-import { GlobalFooter } from "@/components/layout/GlobalFooter";
+import { FoodLicenceFooter } from "@/components/layout/OrderPageFooter";
 import { useApp } from "@/context/AppContext";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -839,7 +839,7 @@ export function OrderMenuClient({
         onClose={() => setSelectedModalItem(null)}
       />
 
-      <GlobalFooter />
+      <FoodLicenceFooter />
     </div>
   );
 }

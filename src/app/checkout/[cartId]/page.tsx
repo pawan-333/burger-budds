@@ -19,7 +19,7 @@ import {
   Tag,
 } from "lucide-react";
 import { GlobalHeader } from "@/components/layout/GlobalHeader";
-import { GlobalFooter } from "@/components/layout/GlobalFooter";
+import { CancellationPolicyFooter } from "@/components/layout/OrderPageFooter";
 import { DietBadge } from "@/components/ui/DietBadge";
 import { useApp } from "@/context/AppContext";
 import {
@@ -867,7 +867,7 @@ export default function CheckoutPage() {
         </div>
       )}
 
-      <GlobalFooter />
+      <CancellationPolicyFooter />
     </div>
   );
 }
