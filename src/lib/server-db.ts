@@ -21,6 +21,7 @@ import {
   SEED_ORDERS,
 } from "@/lib/seed-data";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
+import badagaonMenu from "@/lib/data/badagaon-menu.json";
 
 interface LocalStoreSchema {
   outlet: Outlet;
@@ -168,10 +169,12 @@ export async function getMenuBundle(outletSlug?: string) {
             sb.from("coupons").select("*").eq("is_active", true),
           ]);
         if (categories && items) {
+          const activeCategories = categories.filter((category) => category.is_active);
+          const activeCategoryIds = new Set(activeCategories.map((category) => category.id));
           return {
             outlet: outletData as Outlet,
-            categories: categories as Category[],
-            items: items as MenuItem[],
+            categories: activeCategories as Category[],
+            items: items.filter((item) => activeCategoryIds.has(item.category_id)) as MenuItem[],
             coupons: (coupons || []) as Coupon[],
           };
         }
@@ -182,14 +185,12 @@ export async function getMenuBundle(outletSlug?: string) {
     }
   }
   if (outletSlug === BADAGAON_OUTLET.slug) {
-    const remap = (value: unknown, key = ""): unknown => {
-      if (key === "outlet_id") return BADAGAON_OUTLET.id;
-      if (typeof value === "string" && (key === "id" || key.endsWith("_id"))) return `badagaon-${value}`;
-      if (Array.isArray(value)) return value.map(entry => remap(entry));
-      if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([field, entry]) => [field, remap(entry, field)]));
-      return value;
+    return {
+      outlet: BADAGAON_OUTLET,
+      categories: structuredClone(badagaonMenu.categories) as Category[],
+      items: structuredClone(badagaonMenu.items) as MenuItem[],
+      coupons: store.coupons,
     };
-    return { outlet: BADAGAON_OUTLET, categories: remap(store.categories) as Category[], items: remap(store.items) as MenuItem[], coupons: store.coupons };
   }
   return {
     outlet: store.outlet,

@@ -51,4 +51,8 @@ Apply migration `007_super_admin.sql` after 006. Load the private Supabase serve
 
 ### Badagaon online ordering
 
+The approved October 2026 Badagaon catalog is in `src/lib/data/badagaon-menu.json`: 83 items across 16 categories, with 19 Veg/Paneer or Small/Large pairs. Names, portions and prices come from the supplied Menu Badagoan PDF. Descriptions are concise menu summaries; Zomato Thatipur was checked for reference, but its prices and differing portions are not used. Dish images were not exposed by that page, so the brand logo is the explicit image fallback. No sample ratings, bestseller claims or offers are assigned. The two PDF extras remain separately orderable because the PDF does not define dish-specific add-on groups.
+
+Run `node scripts/update-badagaon-menu.cjs` to preview the database update; add `--apply` to save it against the dedicated project. A private backup is written under `.data/menu-backups` before any change. Old items are made unavailable and their categories inactive, preserving historical order references. The menu loader excludes inactive categories and their items; deploy that loader with the catalog when replacing an existing live menu. Validate catalog checkout prices with `node --test tests/badagaon-menu.test.cjs`.
+
 Apply `008_activate_badagaon.sql` after migrations 006 and 007. It copies the existing Vinay Nagar menu, variants and add-ons into independent Badagaon records without overwriting an existing Badagaon menu, then enables online ordering and delivery. Store cards show live outlet status. Unknown Badagaon hours and phone are not invented. Local preview includes Badagaon ordering; Supabase-backed production requires migration 008. Checkout retains the selected store and clears the cart when switching stores.
