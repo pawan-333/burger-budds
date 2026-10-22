@@ -1,166 +1,41 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseServerClient, getVerifiedUser } from "@/lib/supabase/server";
-import { PUBLIC_MERCHANT_ACCESS } from "@/lib/site-access";
-import {
-  getMenuBundle,
-  getSupabaseAdminClient,
-  readLocalStore,
-  writeLocalStore,
-} from "@/lib/server-db";
-
-export const dynamic = "force-dynamic";
-
-export async function GET(req: NextRequest) {
-  const outletSlug = req.nextUrl.searchParams.get("outlet") || undefined;
-  try {
-    const bundle = await getMenuBundle(outletSlug);
-    return NextResponse.json(bundle);
-  } catch (error) {
-    const missing = typeof error === "object" && error !== null && "code" in error && error.code === "PGRST116";
-    return NextResponse.json({ error: missing ? "This store is not set up yet. Please choose another store." : "Unable to load the menu. Please try again shortly." }, { status: missing ? 404 : 503 });
-  }
+import { NextRequest, NextResponse } from 'next/server';
+import { authorize } from '@/lib/access';
+import { getMenuBundle } from '@/lib/server-db';
+export const dynamic='force-dynamic';
+export async function GET(req:NextRequest) {
+ try{return NextResponse.json(await getMenuBundle(req.nextUrl.searchParams.get('outlet') || undefined));}
+ catch{return NextResponse.json({error:'Menu unavailable. Choose another outlet.'},{status:404});}
 }
-
-export async function PATCH(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const session = PUBLIC_MERCHANT_ACCESS ? getSupabaseAdminClient() : await getSupabaseServerClient();
-    if (session) {
-      const user = await getVerifiedUser();
-      if (!user && !PUBLIC_MERCHANT_ACCESS) return NextResponse.json({ error: "Please log in." }, { status: 401 });
-      const { data: memberships } = PUBLIC_MERCHANT_ACCESS
-        ? { data: [{ outlet_id: (await getMenuBundle()).outlet.id }] }
-        : await session.from("staff").select("outlet_id").eq("user_id", user!.id);
-      const { data: admin } = await session.from("super_admins").select("user_id").eq("user_id", user!.id).maybeSingle();
-      if (!admin && !memberships?.length) return NextResponse.json({ error: "Staff access required." }, { status: 403 });
-      const { data: activeStores } = await session.from("outlets").select("id").eq("is_active", true);
-      const outletIds = (activeStores || []).filter(store => admin || memberships?.some(member => member.outlet_id === store.id)).map(store => store.id);
-      if (body.action === "update_item" && body.itemId) {
-        const patch: Record<string, unknown> = {};
-        if (typeof body.is_available === "boolean") patch.is_available = body.is_available;
-        if (typeof body.price === "number" && Number.isFinite(body.price) && body.price > 0) patch.price = body.price;
-        if (!Object.keys(patch).length) return NextResponse.json({ error: "Invalid item update." }, { status: 400 });
-        const { data, error } = await session.from("items").update(patch).eq("id", body.itemId).in("outlet_id", outletIds).select().maybeSingle();
-        if (error || !data) return NextResponse.json({ error: "Item update failed." }, { status: 400 });
-        return NextResponse.json({ ok: true, item: data });
-      }
-      if (body.action === "toggle_category_stock" && body.categoryId) {
-        if (typeof body.is_available !== "boolean") return NextResponse.json({ error: "Invalid stock value." }, { status: 400 });
-        const { data, error } = await session.from("items").update({ is_available: body.is_available }).eq("category_id", body.categoryId).in("outlet_id", outletIds).select("id");
-        if (error || !data?.length) return NextResponse.json({ error: "Category update failed." }, { status: 400 });
-        return NextResponse.json({ ok: true });
-      }
-      if (body.action === "update_outlet") {
-        const { outlet } = await getMenuBundle(body.outletSlug);
-        const patch: Record<string, unknown> = {};
-        if (typeof body.is_open === "boolean") patch.is_open = body.is_open;
-        if (Number.isInteger(body.prep_time_min) && body.prep_time_min > 0 && body.prep_time_min <= 120) patch.prep_time_min = body.prep_time_min;
-        if (typeof body.delivery_enabled === "boolean") patch.delivery_enabled = body.delivery_enabled;
-        if (Number.isInteger(body.pause_minutes) && body.pause_minutes >= 0 && body.pause_minutes <= 1440) {
-          patch.pause_until = body.pause_minutes ? new Date(Date.now() + body.pause_minutes * 60_000).toISOString() : null;
-          patch.is_open = body.pause_minutes === 0;
-        }
-        const { data, error } = await session.from("outlets").update(patch).eq("id", outlet.id).in("id", outletIds).select().maybeSingle();
-        if (error || !data) return NextResponse.json({ error: "Store update failed." }, { status: 400 });
-        return NextResponse.json({ ok: true, outlet: data });
-      }
-      return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-    }
-    return NextResponse.json({ error: "Staff login and configured database required." }, { status: 401 });
-    const store = readLocalStore();
-    const sb = getSupabaseAdminClient();
-
-    // 1. Toggle item stock or update price
-    if (body.action === "update_item" && body.itemId) {
-      const idx = store.items.findIndex((i) => i.id === body.itemId);
-      if (idx !== -1) {
-        if (typeof body.is_available === "boolean") {
-          store.items[idx].is_available = body.is_available;
-        }
-        if (typeof body.price === "number" && body.price > 0) {
-          store.items[idx].price = body.price;
-        }
-        writeLocalStore(store);
-      }
-
-      if (sb) {
-        const updatePayload: Record<string, unknown> = {};
-        if (typeof body.is_available === "boolean")
-          updatePayload.is_available = body.is_available;
-        if (typeof body.price === "number" && body.price > 0)
-          updatePayload.price = body.price;
-        await sb.from("items").update(updatePayload).eq("id", body.itemId);
-      }
-
-      return NextResponse.json({
-        ok: true,
-        item: idx !== -1 ? store.items[idx] : null,
-      });
-    }
-
-    // 2. Category-level stock toggle
-    if (body.action === "toggle_category_stock" && body.categoryId) {
-      const available = Boolean(body.is_available);
-      store.items = store.items.map((item) =>
-        item.category_id === body.categoryId
-          ? { ...item, is_available: available }
-          : item
-      );
-      writeLocalStore(store);
-
-      if (sb) {
-        await sb
-          .from("items")
-          .update({ is_available: available })
-          .eq("category_id", body.categoryId);
-      }
-
-      return NextResponse.json({ ok: true });
-    }
-
-    // 3. Outlet controls (Open/Close, prep time, pause, delivery toggle)
-    if (body.action === "update_outlet") {
-      if (typeof body.is_open === "boolean") {
-        store.outlet.is_open = body.is_open;
-      }
-      if (typeof body.prep_time_min === "number") {
-        store.outlet.prep_time_min = body.prep_time_min;
-      }
-      if (typeof body.delivery_enabled === "boolean") {
-        store.outlet.delivery_enabled = body.delivery_enabled;
-      }
-      if (body.pause_minutes !== undefined) {
-        if (body.pause_minutes > 0) {
-          store.outlet.pause_until = new Date(
-            Date.now() + body.pause_minutes * 60 * 1000
-          ).toISOString();
-          store.outlet.is_open = false;
-        } else {
-          store.outlet.pause_until = null;
-          store.outlet.is_open = true;
-        }
-      }
-      writeLocalStore(store);
-
-      if (sb) {
-        await sb
-          .from("outlets")
-          .update({
-            is_open: store.outlet.is_open,
-            prep_time_min: store.outlet.prep_time_min,
-          })
-          .eq("id", store.outlet.id);
-      }
-
-      return NextResponse.json({ ok: true, outlet: store.outlet });
-    }
-
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-  } catch (err) {
-    console.error("Menu PATCH error:", err);
-    return NextResponse.json(
-      { error: "Failed to update menu/outlet" },
-      { status: 500 }
-    );
-  }
+export async function PATCH(req:NextRequest) {
+ try {
+ const body=await req.json(); const {outlet}=await getMenuBundle(body.outletSlug);
+ const access=await authorize(outlet.id); if(!access)return NextResponse.json({error:'Staff access required.'},{status:403});
+ const {client}=access;
+ if(body.action==='update_outlet') {
+ const patch:Record<string,unknown>={};
+ if(typeof body.is_open==='boolean')patch.is_open=body.is_open;
+ if(typeof body.delivery_enabled==='boolean')patch.delivery_enabled=body.delivery_enabled;
+ if(Number.isInteger(body.prep_time_min)&&body.prep_time_min>0&&body.prep_time_min<=120)patch.prep_time_min=body.prep_time_min;
+ if(Number.isInteger(body.pause_minutes)&&body.pause_minutes>=0&&body.pause_minutes<=1440)patch.pause_until=body.pause_minutes?new Date(Date.now()+body.pause_minutes*60000).toISOString():null;
+ if(!Object.keys(patch).length)throw Error('Invalid update');
+ const {data,error}=await client.from('outlets').update(patch).eq('id',outlet.id).select().single();if(error)throw error;
+ return NextResponse.json({ok:true,outlet:data});
+ }
+ if(body.action==='update_item'||body.action==='toggle_category_stock') {
+ const {data:targets,error:lookup}=await (body.action==='update_item'?client.from('items').select('id').eq('id',body.itemId):client.from('items').select('id').eq('category_id',body.categoryId)).eq('outlet_id',outlet.id);
+ if(lookup||!targets?.length)throw Error('Item not in outlet');
+ const patch:Record<string,unknown>={};if(typeof body.is_available==='boolean')patch.available=body.is_available;
+ if(body.price!==undefined) {
+ if(!access.brand&&!outlet.allow_price_override)return NextResponse.json({error:'Brand permission required for price changes.'},{status:403});
+ if(!Number.isFinite(body.price)||body.price<0||body.price>100000)throw Error('Invalid price');patch.price_override=body.price;
+ }
+ if(!Object.keys(patch).length)throw Error('Invalid item update');
+ const {error}=await client.from('outlet_menu_items').update(patch).eq('outlet_id',outlet.id).in('legacy_item_id',targets.map(i=>i.id));if(error)throw error;
+ // Compatibility projection for historical menu subscribers.
+ const legacy:Record<string,unknown>={};if(patch.available!==undefined)legacy.is_available=patch.available;if(patch.price_override!==undefined)legacy.price=patch.price_override;
+ const {error:projection}=await client.from('items').update(legacy).eq('outlet_id',outlet.id).in('id',targets.map(i=>i.id));if(projection)throw projection;
+ return NextResponse.json({ok:true});
+ }
+ return NextResponse.json({error:'Unknown action'},{status:400});
+ } catch{return NextResponse.json({error:'Unable to update. Check outlet and migration setup.'},{status:400});}
 }

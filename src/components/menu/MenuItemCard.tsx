@@ -63,7 +63,7 @@ export function MenuItemCard({ item, onSelectItem }: MenuItemCardProps) {
           {/* Price Row */}
           <div className="flex items-baseline gap-2 pt-0.5">
             <span className="text-sm sm:text-base font-extrabold text-text-primary">
-              ₹{item.price}
+              {item.variants?.length ? "From " : ""}₹{Number(item.price) + (item.variants?.length ? Math.min(...item.variants.map(v => Number(v.price_delta))) : 0)}
             </span>
             {item.original_price && (
               <span className="text-xs font-semibold text-text-muted line-through">
@@ -72,7 +72,7 @@ export function MenuItemCard({ item, onSelectItem }: MenuItemCardProps) {
             )}
             {item.is_on_offer && (
               <span className="text-[11px] font-extrabold text-status-open">
-                FLAT129 Eligible
+                On offer
               </span>
             )}
           </div>

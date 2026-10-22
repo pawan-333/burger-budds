@@ -169,12 +169,24 @@ export async function getMenuBundle(outletSlug?: string) {
             sb.from("coupons").select("*").eq("is_active", true),
           ]);
         if (categories && items) {
+          const {data:links,error:linkError}=await sb.from('outlet_menu_items').select('*, central:menu_items(*)').eq('outlet_id',outletData.id);
+          if(linkError) throw linkError;
+          const resolvedItems=items.map(item=>{
+            const link=links?.find(link=>link.legacy_item_id===item.id);
+            if(!link || !link.central) return item;
+            const central=link.central;
+            return {...item,name:central.name,description:central.description,image_url:central.image_url,diet:central.diet,
+              price:link.price_override ?? central.price,is_available:link.available,sort_order:link.sort_order,
+              is_bestseller:central.is_bestseller,is_new:central.is_new,
+              variants:(central.variants || []).map((v:Record<string,unknown>)=>({...v,...link.variant_overrides?.[String(v.id)]})),
+              addon_groups:central.addon_groups || []};
+          });
           const activeCategories = categories.filter((category) => category.is_active);
           const activeCategoryIds = new Set(activeCategories.map((category) => category.id));
           return {
             outlet: outletData as Outlet,
             categories: activeCategories as Category[],
-            items: items.filter((item) => activeCategoryIds.has(item.category_id)) as MenuItem[],
+            items: resolvedItems.filter((item) => activeCategoryIds.has(item.category_id)) as MenuItem[],
             coupons: (coupons || []) as Coupon[],
           };
         }
@@ -192,6 +204,7 @@ export async function getMenuBundle(outletSlug?: string) {
       coupons: store.coupons,
     };
   }
+  if(outletSlug && outletSlug !== store.outlet.slug) throw Object.assign(new Error("Outlet not found"),{code:"PGRST116"});
   return {
     outlet: store.outlet,
     categories: store.categories.filter((c) => c.is_active),
