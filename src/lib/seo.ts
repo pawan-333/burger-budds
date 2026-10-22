@@ -9,6 +9,7 @@ export function pageMetadata(title: string, description: string, path: string): 
   return {
     title,
     description,
+    robots: { index: true, follow: true },
     alternates: { canonical: url },
     openGraph: {
       title, description, url, type: "website", siteName: "Burger Budds",
@@ -22,7 +23,7 @@ export function pageMetadata(title: string, description: string, path: string): 
   };
 }
 
-export const PUBLIC_PATHS = ["/", "/about", "/stores", "/gallery", "/faqs", "/terms", "/privacy", "/refund-policy"];
+export const PUBLIC_PATHS = ["/", "/about", "/stores", "/gallery", "/faqs", "/terms", "/privacy", "/refund-policy", "/contact", "/bulk-order", "/tnc", "/privacy-policy"];
 
 // Seed contact details are sample data; publish only established brand facts.
 export const brandStructuredData = {

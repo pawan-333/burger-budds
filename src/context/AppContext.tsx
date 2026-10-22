@@ -373,113 +373,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAuthCallback(null);
   }, []);
 
-  const sendPhoneOtp = useCallback(async (phone: string) => {
-    const cleanPhone = phone.replace(/\D/g, "").slice(-10);
-    if (cleanPhone.length !== 10) {
-      return {
-        ok: false,
-        message: "Please enter a valid 10-digit mobile number.",
-      };
-    }
-    const formatted = `+91${cleanPhone}`;
-    const sb = getSupabaseBrowserClient();
-    if (sb) {
-      try {
-        const { error } = await sb.auth.signInWithOtp({ phone: formatted });
-        if (!error) {
-          return {
-            ok: true,
-            message: `OTP sent to ${formatted} via SMS.`,
-          };
-        }
-        return { ok: false, message: error.message };
-      } catch {
-        return { ok: false, message: "Could not send OTP. Please try again." };
-      }
-    }
-    if (process.env.NODE_ENV === "production") {
-      return { ok: false, message: "Phone login is not configured yet. Please contact the store." };
-    }
-    return {
-      ok: true,
-      message: `OTP sent to +91 ${cleanPhone} (Use demo OTP: 123456)`,
-    };
-  }, []);
-
-  const verifyPhoneOtp = useCallback(
-    async (phone: string, otp: string, name?: string) => {
-      if (phone.includes("@")) {
-        const result = await verifyEmailOtp(phone, otp);
-        if (!result.ok || !result.user) return { ok: false, message: result.message };
-        const profile: UserProfile = {
-          id: result.user.id, name: name?.trim() || "Burger Budds Customer",
-          phone: result.user.phone || "", email: result.user.email || phone,
-          wallet_balance: 0, referral_code: "",
-        };
-        setUser(profile);
-        const sb = getSupabaseBrowserClient();
-        await sb?.from("profiles").update({ name: profile.name }).eq("id", profile.id);
-        setIsAuthModalOpen(false);
-        if (authCallback) authCallback();
-        return { ok: true, message: "Signed in!" };
-      }
-      const cleanPhone = phone.replace(/\D/g, "").slice(-10);
-      const formatted = `+91 ${cleanPhone}`;
-      const sb = getSupabaseBrowserClient();
-      if (sb) {
-        try {
-          const { data, error } = await sb.auth.verifyOtp({
-            phone: `+91${cleanPhone}`,
-            token: otp.trim(),
-            type: "sms",
-          });
-          if (!error && data.user) {
-            const profile: UserProfile = {
-              id: data.user.id,
-              name: name?.trim() || "Burger Budds Fan",
-              phone: formatted,
-              email: data.user.email || "",
-              wallet_balance: 0,
-              referral_code: `BB${cleanPhone.slice(-4)}`,
-            };
-            setUser(profile);
-            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(profile));
-            setIsAuthModalOpen(false);
-            if (authCallback) authCallback();
-            return { ok: true, message: "Logged in!" };
-          }
-          return { ok: false, message: error?.message || "Invalid OTP. Please try again." };
-        } catch {
-          return { ok: false, message: "Could not verify OTP. Please try again." };
-        }
-      }
-
-      if (process.env.NODE_ENV === "production") {
-        return { ok: false, message: "Phone login is not configured yet." };
-      }
-      if (otp.trim() !== "123456") {
-        return {
-          ok: false,
-          message: "Please enter the 6-digit OTP (e.g. 123456).",
-        };
-      }
-
-      const profile: UserProfile = {
-        id: `user-${cleanPhone}`,
-        name: name?.trim() || "Aditya Verma",
-        phone: formatted,
-        email: "aditya@burgerbudds.in",
-        wallet_balance: 150,
-        referral_code: `BUDDS${cleanPhone.slice(-4)}`,
-      };
-      setUser(profile);
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(profile));
-      setIsAuthModalOpen(false);
-      if (authCallback) authCallback();
-      return { ok: true, message: "Verified!" };
-    },
-    [authCallback]
-  );
+  const sendPhoneOtp = useCallback(async (phone:string) => {
+    const res=await fetch('/api/auth/otp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,consent:true})});return res.json();
+  },[]);
+  const verifyPhoneOtp=useCallback(async(phone:string,otp:string,name?:string)=>{
+    const res=await fetch('/api/auth/otp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'verify',...(phone.includes('@')?{email:phone}:{phone}),otp,name})});
+    const result=await res.json();if(!result.ok)return result;
+    const account=result.user;setUser({id:account?.id || 'mock-user',name:name?.trim() || '',phone:account?.phone || phone,email:account?.email || '',wallet_balance:0,referral_code:''});
+    setIsAuthModalOpen(false);if(authCallback)authCallback();return result;
+  },[authCallback]);
 
   const updateUserProfile = useCallback((patch: Partial<UserProfile>) => {
     const sb = getSupabaseBrowserClient();

@@ -1,0 +1,3 @@
+import {createHash} from 'crypto';import {getSupabaseAdminClient} from '@/lib/server-db';
+const buckets=new Map<string,{count:number,reset:number}>();
+export async function rateLimit(identity:string,limit=5,seconds=600){const key=createHash('sha256').update(identity).digest('hex');const sb=getSupabaseAdminClient();if(sb){const {data,error}=await sb.rpc('consume_auth_limit',{target_key:key,max_requests:limit,window_seconds:seconds});return !error&&data===true;}if(process.env.NODE_ENV==='production')return false;const now=Date.now();if(buckets.size>10000)for(const [k,b]of buckets)if(b.reset<now)buckets.delete(k);let bucket=buckets.get(key);if(!bucket||bucket.reset<now){bucket={count:0,reset:now+seconds*1000};buckets.set(key,bucket);}return ++bucket.count<=limit;}

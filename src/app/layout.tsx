@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   icons: { apple: "/icon" },
   title: "Burger Budds — Online Ordering | Fresh Smash Burgers in Gwalior",
   description:
-    "Order handcrafted smash burgers, crispy paneer burgers, peri-peri crinkle fries, and thick shakes online from Burger Budds Vinay Nagar, Gwalior.",
+    "Order handcrafted smash burgers, crispy paneer burgers, peri-peri crinkle fries, and thick shakes online from your nearest Burger Budds outlet.",
   manifest: "/manifest.json",
   verification: {
     google: "tz9bXuepDsoQxYYcqLCAe0B2xE42irF0z1YA3Rw1PFU",
@@ -28,6 +28,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  themeColor: "#f7ce0c",
   width: "device-width",
   initialScale: 1,
 };
