@@ -75,6 +75,10 @@ export default function MerchantAppPage() {
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [connected, setConnected] = useState<boolean>(true);
   const [orderActionError, setOrderActionError] = useState<string | null>(null);
+  const [pendingOrders, setPendingOrders] = useState<Record<string, boolean>>({});
+  const pendingOrderIds = useRef(new Set<string>());
+  const refreshInFlight = useRef(false);
+  const orderRevision = useRef(0);
 
   // Audio Alarm State (Looping kitchen alarm when unaccepted 'placed' orders exist)
   const [audioUnlocked, setAudioUnlocked] = useState<boolean>(false);
@@ -140,7 +144,9 @@ export default function MerchantAppPage() {
   };
 
   const fetchMerchantData = useCallback(async () => {
-    if (staffAccess !== "allowed") return;
+    if (staffAccess !== "allowed" || refreshInFlight.current) return;
+    refreshInFlight.current = true;
+    const revision = orderRevision.current;
     try {
       const [menuRes, ordersRes] = await Promise.all([
         fetch(`/api/menu?outlet=${encodeURIComponent(merchantSlug)}`, { cache: "no-store" }),
@@ -155,11 +161,13 @@ export default function MerchantAppPage() {
       }
       if (ordersRes.ok) {
         const ordersData = await ordersRes.json();
-        if (Array.isArray(ordersData.orders)) setOrders(ordersData.orders);
+        if (Array.isArray(ordersData.orders) && revision === orderRevision.current && pendingOrderIds.current.size === 0) setOrders(ordersData.orders);
       }
       setConnected(true);
     } catch {
       setConnected(false);
+    } finally {
+      refreshInFlight.current = false;
     }
   }, [staffAccess, merchantSlug]);
 
@@ -235,6 +243,10 @@ export default function MerchantAppPage() {
     status: OrderStatus,
     extra?: { prepTimeMin?: number; rejectReason?: string }
   ) => {
+    if (pendingOrderIds.current.has(orderId)) return;
+    pendingOrderIds.current.add(orderId);
+    orderRevision.current += 1;
+    setPendingOrders(previous => ({ ...previous, [orderId]: true }));
     setOrderActionError(null);
     try {
       const res = await fetch(`/api/orders/${orderId}/status`, {
@@ -249,7 +261,8 @@ export default function MerchantAppPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        await fetchMerchantData();
+        orderRevision.current += 1;
+        setOrders(previous => previous.map(order => order.id === orderId ? data.order : order));
         notifyRealtimeUpdate("order_updated", data.order);
         setRejectingOrderId(null);
       } else {
@@ -257,7 +270,10 @@ export default function MerchantAppPage() {
         setOrderActionError(data.error || "Unable to update order. Please refresh and try again.");
       }
     } catch {
-      setOrderActionError("Connection failed. Please try again.");
+      setOrderActionError("Connection interrupted. Refresh orders to check the saved status before retrying.");
+    } finally {
+      pendingOrderIds.current.delete(orderId);
+      setPendingOrders(previous => { const next = { ...previous }; delete next[orderId]; return next; });
     }
   };
 
@@ -823,7 +839,8 @@ export default function MerchantAppPage() {
                       </div>
 
                       {/* Order Actions Footer */}
-                      <div className="pt-3 border-t border-border-subtle space-y-3">
+                      <fieldset disabled={pendingOrders[ord.id]} aria-busy={!!pendingOrders[ord.id]} className="pt-3 border-t border-border-subtle space-y-3 disabled:opacity-60">
+                        {pendingOrders[ord.id] && <p role="status" className="text-sm font-bold text-brand-secondary">Saving order status…</p>}
                         {ord.status === "placed" && (
                           <div className="space-y-2.5">
                             <div className="flex items-center justify-between gap-2">
@@ -1007,7 +1024,7 @@ export default function MerchantAppPage() {
                             Customer Track View →
                           </Link>
                         </div>
-                      </div>
+                      </fieldset>
                     </article>
                   );
                 })}

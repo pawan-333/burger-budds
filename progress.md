@@ -17,3 +17,6 @@ Added migration 009: outlet metadata, central catalog and outlet mapping, varian
 
 ## Phase 1 — outlet leak fixes implemented
 Removed dummy contact and fixed FSSAI. Header/footer/address defaults read current outlet; change-outlet navigation added. India timezone day schedules and overnight hours now gate both UI and order creation, with manual pause. Files: outlet-hours.ts, seed-data, AppContext, layout/header/footer, AddressModal, ProfileDrawer, OrderMenuClient, orders API. Static review complete; full checks deferred to phase 11. Unknown Badagaon timings/contact/license deliberately shown as unconfirmed; orders fail closed until configured.
+
+## Phase 2 — access hardening implemented, live isolation verification pending
+Preserved existing merchant login/role guards and scoped order APIs. Added reusable server authorization for current/new roles, membership compatibility trigger, removed anonymous local order reads/mutations and local merchant writes. Revoked direct money/order/outlet edits; profile editing limited to contact fields. Files: access.ts, migration 010, menu/orders/status APIs, existing merchant and access tests. No credentials exposed. OTP rate limiting is implemented with Phase 9 auth layer. Remaining: real authenticated two-outlet RLS execution and integration tests.

@@ -52,8 +52,10 @@ export async function PATCH(
       const { data: visible } = await session.from("orders").select("id, outlet_id").eq("id", orderId).maybeSingle();
       if (!visible) return NextResponse.json({ error: "Order not found" }, { status: 404 });
       if (actor === "merchant") {
-        const { data: membership } = await session.from("staff").select("outlet_id").eq("user_id", user.id).eq("outlet_id", visible.outlet_id).maybeSingle();
-        const { data: admin } = await session.from("super_admins").select("user_id").eq("user_id", user.id).maybeSingle();
+        const [{ data: membership }, { data: admin }] = await Promise.all([
+          session.from("staff").select("outlet_id").eq("user_id", user.id).eq("outlet_id", visible.outlet_id).maybeSingle(),
+          session.from("super_admins").select("user_id").eq("user_id", user.id).maybeSingle(),
+        ]);
         if (!membership && !admin) return NextResponse.json({ error: "Store staff access required." }, { status: 403 });
       }
       const { data, error } = await sb.rpc("transition_order", {
@@ -63,7 +65,7 @@ export async function PATCH(
       if (error) return NextResponse.json({ error: "Order status change was not allowed. Please refresh and try again." }, { status: 400 });
       return NextResponse.json({ order: publicOrder(data) });
     }
-    if (process.env.NODE_ENV === "production") return NextResponse.json({ error: "Ordering service is not configured." }, { status: 503 });
+    return NextResponse.json({ error: "Authenticated ordering service required." }, { status: 401 });
 
     if (!nextStatus) {
       return NextResponse.json(

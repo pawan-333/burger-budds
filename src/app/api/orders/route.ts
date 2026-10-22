@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ orders: (data || []).map(publicOrder) });
   }
   if (process.env.NODE_ENV === "production") return NextResponse.json({ error: "Ordering service is not configured." }, { status: 503 });
+  return NextResponse.json({ error: "Authenticated ordering service required." }, { status: 401 });
   const store = readLocalStore();
 
   if (orderId) {

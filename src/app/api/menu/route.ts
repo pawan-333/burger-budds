@@ -66,7 +66,7 @@ export async function PATCH(req: NextRequest) {
       }
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
-    if (process.env.NODE_ENV === "production") return NextResponse.json({ error: "Store service is not configured." }, { status: 503 });
+    return NextResponse.json({ error: "Staff login and configured database required." }, { status: 401 });
     const store = readLocalStore();
     const sb = getSupabaseAdminClient();
 

@@ -38,6 +38,7 @@ test('merchant UI accept action reaches public merchant RPC without authenticati
   const scope = {
     exports: {}, staffRole: 'owner', setOrderActionError: () => {}, setRejectingOrderId: () => {},
     fetchMerchantData: async () => {}, notifyRealtimeUpdate: () => {},
+    pendingOrderIds: { current: new Set() }, orderRevision: { current: 0 }, setPendingOrders: () => {}, setOrders: () => {},
     fetch: async (_, options) => {
       const result = await route.patch(JSON.parse(options.body));
       return { ok: result.status === 200, json: async () => result.data };
@@ -92,4 +93,52 @@ test('anonymous customer without an order cookie cannot cancel', async () => {
   const result = await route.patch({ actor: 'customer', status: 'cancelled' });
   assert.equal(result.status, 403);
   assert.equal(route.calls.length, 0);
+});
+
+test('merchant status changes respond immediately and do not wait for a full dashboard reload', async () => {
+  const source = fs.readFileSync('src/app/merchant/page.tsx', 'utf8');
+  const handler = source.slice(source.indexOf('const handleOrderStatusChange ='), source.indexOf('const handleToggleItemStock ='));
+  let finish;
+  let requests = 0;
+  let refreshes = 0;
+  let pending = {};
+  let orders = [{ id: 'order-a', status: 'placed' }];
+  const response = new Promise(resolve => { finish = resolve; });
+  const scope = {
+    exports: {}, pendingOrderIds: { current: new Set() }, orderRevision: { current: 0 },
+    setPendingOrders: update => { pending = update(pending); }, setOrders: update => { orders = update(orders); },
+    setOrderActionError: () => {}, setRejectingOrderId: () => {}, notifyRealtimeUpdate: () => {},
+    fetchMerchantData: async () => { refreshes++; }, fetch: () => { requests++; return response; },
+  };
+  vm.runInNewContext(ts.transpileModule(`${handler}\nexports.change = handleOrderStatusChange;`, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, scope);
+  const first = scope.exports.change('order-a', 'accepted');
+  assert.equal(pending['order-a'], true);
+  await scope.exports.change('order-a', 'accepted');
+  assert.equal(requests, 1);
+  finish({ ok: true, json: async () => ({ order: { id: 'order-a', status: 'accepted' } }) });
+  await first;
+  assert.equal(orders[0].status, 'accepted');
+  assert.equal(refreshes, 0);
+  assert.equal(pending['order-a'], undefined);
+  assert.equal(scope.pendingOrderIds.current.size, 0);
+});
+
+test('failed merchant action clears pending feedback and preserves the saved order status', async () => {
+  const source = fs.readFileSync('src/app/merchant/page.tsx', 'utf8');
+  const handler = source.slice(source.indexOf('const handleOrderStatusChange ='), source.indexOf('const handleToggleItemStock ='));
+  let pending = {};
+  let errorMessage;
+  let updates = 0;
+  const scope = {
+    exports: {}, pendingOrderIds: { current: new Set() }, orderRevision: { current: 0 },
+    setPendingOrders: update => { pending = update(pending); }, setOrders: () => { updates++; },
+    setOrderActionError: message => { errorMessage = message; }, setRejectingOrderId: () => {}, notifyRealtimeUpdate: () => {},
+    fetch: async () => ({ ok: false, json: async () => ({ error: 'Access denied' }) }),
+  };
+  vm.runInNewContext(ts.transpileModule(`${handler}\nexports.change = handleOrderStatusChange;`, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, scope);
+  await scope.exports.change('order-a', 'ready');
+  assert.equal(updates, 0);
+  assert.equal(errorMessage, 'Access denied');
+  assert.equal(pending['order-a'], undefined);
+  assert.equal(scope.pendingOrderIds.current.size, 0);
 });
