@@ -128,6 +128,9 @@ export interface Coupon {
   ends_at?: string;
   usage_limit?: number;
   is_active: boolean;
+  outlet_id?: string | null;
+  approval_status?: "pending" | "approved" | "rejected";
+  per_user_limit?: number;
 }
 
 export interface UserProfile {

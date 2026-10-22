@@ -187,7 +187,7 @@ export async function getMenuBundle(outletSlug?: string) {
             outlet: outletData as Outlet,
             categories: activeCategories as Category[],
             items: resolvedItems.filter((item) => activeCategoryIds.has(item.category_id)) as MenuItem[],
-            coupons: (coupons || []) as Coupon[],
+            coupons: (coupons || []).filter(c => (!c.outlet_id || c.outlet_id===outletData.id) && (!c.approval_status || c.approval_status === "approved")) as Coupon[],
           };
         }
       }

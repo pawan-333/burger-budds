@@ -3,6 +3,8 @@ import { getMenuBundle } from "@/lib/server-db";
 import { computeServerBill, ServerCartItemInput } from "@/lib/pricing";
 import { OrderType } from "@/types/database";
 
+import {walletAvailable} from "@/lib/wallet";
+import {getVerifiedUser} from "@/lib/supabase/server";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -12,8 +14,8 @@ export async function POST(req: NextRequest) {
     const orderType: OrderType =
       body.orderType === "takeaway" ? "takeaway" : "delivery";
     const couponCode: string | null = body.couponCode || null;
-    const useWallet = false;
-    const walletBalance = 0;
+    const useWallet = Boolean(body.useWallet);
+    const walletBalance = await walletAvailable((await getVerifiedUser())?.id);
     const distanceKm =
       typeof body.distanceKm === "number" ? body.distanceKm : 1.8;
 

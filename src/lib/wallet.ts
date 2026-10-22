@@ -1,0 +1,2 @@
+import {getSupabaseAdminClient} from '@/lib/server-db';
+export async function walletAvailable(userId?:string){if(!userId)return 0;const sb=getSupabaseAdminClient();if(!sb)return 0;const [{data:p,error},{data:holds,error:h}]=await Promise.all([sb.from('profiles').select('wallet_balance').eq('id',userId).single(),sb.from('coin_reservations').select('amount').eq('user_id',userId).eq('state','reserved')]);if(error||h)throw Error('Wallet unavailable');return Math.max(0,Number(p.wallet_balance)-(holds||[]).reduce((sum,r)=>sum+Number(r.amount),0));}

@@ -100,6 +100,7 @@ export function computeServerBill(params: {
     const normalized = couponCode.trim().toUpperCase();
     const coupon = coupons.find(
       (c) => c.code.toUpperCase() === normalized && c.is_active &&
+        (!c.outlet_id || c.outlet_id === outlet.id) && (!c.approval_status || c.approval_status === "approved") &&
         (!c.starts_at || new Date(c.starts_at).getTime() <= Date.now()) &&
         (!c.ends_at || new Date(c.ends_at).getTime() > Date.now())
     );
@@ -116,6 +117,7 @@ export function computeServerBill(params: {
         const raw = Math.round((itemTotal * coupon.value) / 100);
         discount = coupon.max_discount ? Math.min(raw, coupon.max_discount) : raw;
       }
+      if(coupon.type === 'fixed_price') discount=Math.max(0,itemTotal-coupon.value);
       couponMessage = `Coupon ${coupon.code} applied! You saved ₹${discount}`;
     }
   }
@@ -141,13 +143,13 @@ export function computeServerBill(params: {
     }
   }
 
-  const platformFee = Number(outlet.platform_fee ?? 9);
+  const platformFee = Number(outlet.platform_fee ?? 0) + Number(outlet.packaging_fee ?? 0);
   const preWalletTotal = Math.max(
     0,
     itemTotal - discount + tax + deliveryFee + platformFee
   );
 
-  const maxWalletAllowed = Math.min(walletBalance, preWalletTotal);
+  const maxWalletAllowed = Math.max(0, Math.min(walletBalance, Math.floor(preWalletTotal * 0.2)));
   const walletUsed = useWallet ? Math.round(maxWalletAllowed) : 0;
 
   const grandTotal = Math.max(0, Math.round(preWalletTotal - walletUsed));

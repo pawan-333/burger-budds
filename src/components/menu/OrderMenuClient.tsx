@@ -33,6 +33,7 @@ import { FoodLicenceFooter } from "@/components/layout/OrderPageFooter";
 import { useApp } from "@/context/AppContext";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
+import { offerText } from "@/lib/offers";
 import { outletHours } from "@/lib/outlet-hours";
 
 interface OrderMenuClientProps {
@@ -342,10 +343,7 @@ export function OrderMenuClient({
               </span>
               <div>
                 <p className="text-sm sm:text-base font-extrabold tracking-tight">
-                  ENJOY FLAT 129 on every order — Use code{" "}
-                  <span className="px-2 py-0.5 rounded-xs bg-brand-primary text-text-onPrimary font-extrabold">
-                    FLAT129
-                  </span>
+                  {coupons[0] ? offerText(coupons[0]) : "Fresh food, made to order"}
                 </p>
                 <p className="text-xs text-text-onSecondary/85">
                   Save flat ₹70 on orders above ₹199 + earn BB Coins on every
@@ -357,16 +355,16 @@ export function OrderMenuClient({
             <div className="flex items-center gap-2 self-end sm:self-center">
               <button
                 type="button"
-                onClick={() => setCouponCode("FLAT129")}
+                onClick={() => setCouponCode(coupons[0]?.code || null)}
                 className="min-h-[40px] px-3.5 py-1.5 rounded-xs bg-brand-primary hover:bg-brand-primaryHover text-text-onPrimary font-extrabold text-xs inline-flex items-center gap-1 shadow-1"
               >
-                {couponCode === "FLAT129" ? (
+                {coupons[0] && couponCode === coupons[0].code ? (
                   <>
                     <Check className="w-3.5 h-3.5" />
-                    <span>FLAT129 Applied</span>
+                    <span>Offer Applied</span>
                   </>
                 ) : (
-                  <span>Apply FLAT129</span>
+                  <span>Apply offer</span>
                 )}
               </button>
 
