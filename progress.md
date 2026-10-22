@@ -14,3 +14,6 @@ Inspection complete. Implementation pending.
 
 ## Phase 0 — foundation implemented, DB execution pending
 Added migration 009: outlet metadata, central catalog and outlet mapping, variant/add-on override storage, new roles and scoped RLS helpers. Preserves historical IDs. Existing seed already contains both outlets; contacts/licenses remain unverified and will not be invented. Files: migration 009, database.ts. Reviewed migration against 001–008; PostgreSQL execution not yet available. Remaining: database execution and role isolation verification.
+
+## Phase 1 — outlet leak fixes implemented
+Removed dummy contact and fixed FSSAI. Header/footer/address defaults read current outlet; change-outlet navigation added. India timezone day schedules and overnight hours now gate both UI and order creation, with manual pause. Files: outlet-hours.ts, seed-data, AppContext, layout/header/footer, AddressModal, ProfileDrawer, OrderMenuClient, orders API. Static review complete; full checks deferred to phase 11. Unknown Badagaon timings/contact/license deliberately shown as unconfirmed; orders fail closed until configured.

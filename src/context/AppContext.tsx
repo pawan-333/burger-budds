@@ -100,22 +100,7 @@ const STORAGE_KEYS = {
   SELECTED_ADDR: "bb_selected_address_v1",
 };
 
-const DEFAULT_SAVED_ADDRESSES: Address[] = [
-  {
-    id: "addr-seed-1",
-    user_id: "user-local-1",
-    label: "home",
-    house: "Flat 204, Emerald Residency, Sector 3, Vinay Nagar",
-    landmark: "Near Bahodapur Square",
-    phone: "+91 98260 55443",
-    email: "buddy@burgerbudds.in",
-    lat: 26.2215,
-    lng: 78.1795,
-    locality: "Vinay Nagar, Gwalior",
-    city: "Gwalior",
-    distance_km: 0.6,
-  },
-];
+
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [activeOutlet, setActiveOutlet] = useState<Outlet>(SEED_OUTLET);
@@ -145,7 +130,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const selectOutlet = useCallback((next: Outlet) => {
     if (!hydrated) return;
     if (activeOutlet.id !== next.id) { setCartItems([]); setCouponCode(null); setSpecialInstructions(""); }
-    setActiveOutlet(previous => previous.id === next.id ? previous : next);
+    setActiveOutlet(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
   }, [activeOutlet.id, hydrated]);
 
   useEffect(() => {

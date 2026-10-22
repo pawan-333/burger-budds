@@ -33,6 +33,8 @@ import { FoodLicenceFooter } from "@/components/layout/OrderPageFooter";
 import { useApp } from "@/context/AppContext";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
+import { outletHours } from "@/lib/outlet-hours";
+
 interface OrderMenuClientProps {
   initialOutlet: Outlet;
   initialCategories: Category[];
@@ -239,12 +241,12 @@ export function OrderMenuClient({
                 </button>
                 <span
                   className={`px-2.5 py-0.5 rounded-pill text-xs font-extrabold uppercase tracking-wider ${
-                    outlet.is_open
+                    outletHours(outlet).open
                       ? "bg-status-open text-text-onSecondary"
                       : "bg-status-error text-text-onSecondary"
                   }`}
                 >
-                  {outlet.is_open ? "OPEN" : "CLOSED"}
+                  {outletHours(outlet).open ? "OPEN" : "CLOSED"}
                 </span>
               </div>
 
@@ -256,7 +258,7 @@ export function OrderMenuClient({
                 <span>•</span>
                 <span className="inline-flex items-center gap-1">
                   <Clock className="w-4 h-4 text-brand-secondary" />
-                  {outlet.prep_time_min + 10} Mins
+                  {outlet.prep_time_min + (outlet.avg_delivery_min ?? 20)} Mins
                 </span>
                 {selectedAddress && (
                   <>
@@ -310,7 +312,7 @@ export function OrderMenuClient({
                   Store Hours & Contact
                 </p>
                 <p>
-                  {outlet.timings.open} – {outlet.timings.close} •{" "}
+                  {outletHours(outlet).label} •{" "}
                   {outlet.phone}
                 </p>
               </div>

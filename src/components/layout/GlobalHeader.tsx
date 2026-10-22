@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
-import { DEFAULT_OUTLET_SLUG } from "@/lib/seed-data";
+
 
 interface GlobalHeaderProps {
   totalMenuItems?: number;
@@ -99,6 +99,7 @@ export function GlobalHeader({ totalMenuItems = 10 }: GlobalHeaderProps) {
   };
 
   const navLinks = [
+    { href: "/stores", label: "Change outlet" },
     { href: "/", label: "Home" },
     { href: "/about", label: "About Us" },
     { href: "/stores", label: "Store Locator" },
@@ -297,11 +298,11 @@ export function GlobalHeader({ totalMenuItems = 10 }: GlobalHeaderProps) {
               <span>Merchant App (Live POS)</span>
             </Link>
             <a
-              href="tel:+919826012345"
+              href={activeOutlet.phone ? `tel:${activeOutlet.phone}` : "/contact"}
               className="inline-flex items-center gap-1.5 text-text-onSecondary hover:underline"
             >
               <Phone className="w-3.5 h-3.5 text-brand-primary" />
-              <span>+91 98260 12345</span>
+              <span>{activeOutlet.phone || "Contact support"}</span>
             </a>
           </div>
         </div>
@@ -390,11 +391,11 @@ export function GlobalHeader({ totalMenuItems = 10 }: GlobalHeaderProps) {
                 <span>Download The App</span>
               </Link>
               <a
-                href="tel:+919826012345"
+                href={activeOutlet.phone ? `tel:${activeOutlet.phone}` : "/contact"}
                 className="w-full min-h-[44px] rounded-xs bg-brand-secondaryDark text-text-onSecondary font-semibold text-sm flex items-center justify-center gap-2"
               >
                 <Phone className="w-4 h-4 text-brand-primary" />
-                <span>Outlet Support: +91 98260 12345</span>
+                <span>Outlet Support: {activeOutlet.phone || "Contact support"}</span>
               </a>
             </div>
           </div>

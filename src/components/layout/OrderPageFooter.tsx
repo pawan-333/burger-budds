@@ -1,3 +1,5 @@
+"use client";
+import { useApp } from "@/context/AppContext";
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 
@@ -5,13 +7,14 @@ const footerClassName =
   "border-t border-border-subtle bg-surface-base px-4 pt-5 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-6 lg:pb-6";
 
 export function FoodLicenceFooter() {
+  const { activeOutlet } = useApp();
   return (
     <footer className={footerClassName} aria-label="Food licence">
       <div className="max-w-7xl mx-auto flex items-start gap-3">
         <ShieldCheck aria-hidden="true" className="w-5 h-5 shrink-0 text-brand-secondary mt-0.5" />
         <div className="space-y-1 text-sm">
           <h2 className="font-bold text-text-primary">Food Licence</h2>
-          <p className="text-text-secondary break-words">FSSAI Lic. No. 21424010001892</p>
+          <p className="text-text-secondary break-words">{activeOutlet.fssai_number ? `FSSAI Lic. No. ${activeOutlet.fssai_number}` : "Food licence details awaiting verification"}</p>
         </div>
       </div>
     </footer>

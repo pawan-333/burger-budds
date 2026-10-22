@@ -278,7 +278,7 @@ export function ProfileDrawer() {
                       How fast does Burger Budds deliver in Gwalior?
                     </p>
                     <p className="text-text-secondary">
-                      Within our 5 km radius around Vinay Nagar, we deliver hot
+                      Within the selected outlet delivery zone, we deliver hot
                       & crispy burgers in 30–45 minutes.
                     </p>
                   </div>

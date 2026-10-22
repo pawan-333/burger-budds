@@ -21,6 +21,8 @@ import {
   PaymentMethod,
 } from "@/types/database";
 
+import { outletHours } from "@/lib/outlet-hours";
+
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
@@ -40,8 +42,10 @@ export async function GET(req: NextRequest) {
       if (!slug) return NextResponse.json({ error: "Store is required." }, { status: 400 });
       const { data: outlet } = await session.from("outlets").select("id").eq("slug", slug).eq("is_active", true).maybeSingle();
       if (!outlet) return NextResponse.json({ error: "Store not found." }, { status: 404 });
-      const { data: membership } = await session.from("staff").select("outlet_id").eq("user_id", user.id).eq("outlet_id", outlet.id).maybeSingle();
-      const { data: admin } = await session.from("super_admins").select("user_id").eq("user_id", user.id).maybeSingle();
+      const [{ data: membership }, { data: admin }] = await Promise.all([
+        session.from("staff").select("outlet_id").eq("user_id", user.id).eq("outlet_id", outlet.id).maybeSingle(),
+        session.from("super_admins").select("user_id").eq("user_id", user.id).maybeSingle(),
+      ]);
       if (!membership && !admin) return NextResponse.json({ error: "Store staff access required." }, { status: 403 });
       const { data, error } = await session.from("orders").select("*, items:order_items(*), events:order_events(*)").eq("outlet_id", outlet.id).order("placed_at", { ascending: false });
       if (error) return NextResponse.json({ error: "Unable to load orders." }, { status: 500 });
@@ -116,7 +120,7 @@ export async function POST(req: NextRequest) {
       body.outletSlug
     );
 
-    if (!outlet.is_open) {
+    if (!outletHours(outlet).open) {
       return NextResponse.json(
         {
           error:

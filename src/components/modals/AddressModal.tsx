@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { AddressLabel, ServiceabilityResult } from "@/types/database";
-import { SEED_OUTLET } from "@/lib/seed-data";
+
 
 interface PresetLocation {
   name: string;
@@ -30,56 +30,7 @@ interface PresetLocation {
   tag: string;
 }
 
-const GWALIOR_LOCATIONS: PresetLocation[] = [
-  {
-    name: "Vinay Nagar Sector 3 (Near Outlet)",
-    locality: "Sector 3, Vinay Nagar",
-    city: "Gwalior",
-    lat: 26.2205,
-    lng: 78.1812,
-    tag: "0.3 km • Inside Zone",
-  },
-  {
-    name: "Kailash Vihar, City Center",
-    locality: "Kailash Vihar, City Center",
-    city: "Gwalior",
-    lat: 26.2095,
-    lng: 78.1912,
-    tag: "1.3 km • Inside Zone",
-  },
-  {
-    name: "Phoolbagh Square, Lashkar",
-    locality: "Phoolbagh, Lashkar",
-    city: "Gwalior",
-    lat: 26.2124,
-    lng: 78.1772,
-    tag: "0.9 km • Inside Zone",
-  },
-  {
-    name: "Deendayal Nagar (DD Nagar)",
-    locality: "DD Nagar, Maharajpura Road",
-    city: "Gwalior",
-    lat: 26.2465,
-    lng: 78.2045,
-    tag: "3.8 km • Inside Zone",
-  },
-  {
-    name: "Morar Cantonment (7.8 km away)",
-    locality: "Sadar Bazar, Morar Cantonment",
-    city: "Gwalior",
-    lat: 26.2288,
-    lng: 78.2595,
-    tag: "7.7 km • Outside 5km Zone",
-  },
-  {
-    name: "Gwalior Airport Road (10.2 km away)",
-    locality: "Maharajpura Airport Terminal",
-    city: "Gwalior",
-    lat: 26.2933,
-    lng: 78.2278,
-    tag: "9.5 km • Outside 5km Zone",
-  },
-];
+const GWALIOR_LOCATIONS: PresetLocation[] = [];
 
 const DeliveryMap = dynamic(() => import("@/components/maps/DeliveryMap"), { ssr: false });
 
@@ -103,10 +54,10 @@ export function AddressModal() {
   const [mobileStep, setMobileStep] = useState<1 | 2>(1);
 
   // Pin coordinates & auto-detected locality
-  const [pinLat, setPinLat] = useState<number>(26.2188);
-  const [pinLng, setPinLng] = useState<number>(78.1835);
-  const [locality, setLocality] = useState<string>("Vinay Nagar, Sector 3");
-  const [city, setCity] = useState<string>("Gwalior");
+  const [pinLat, setPinLat] = useState<number>(activeOutlet.lat);
+  const [pinLng, setPinLng] = useState<number>(activeOutlet.lng);
+  const [locality, setLocality] = useState<string>(activeOutlet.area);
+  const [city, setCity] = useState<string>(activeOutlet.city || "");
   const [mapSearch, setMapSearch] = useState<string>("");
 
   // Serviceability state
@@ -196,7 +147,7 @@ export function AddressModal() {
 
   useEffect(() => {
     setPinLat(activeOutlet.lat); setPinLng(activeOutlet.lng);
-    setLocality(activeOutlet.area); setServiceability(null);
+    setLocality(activeOutlet.area); setCity(activeOutlet.city || ""); setServiceability(null);
   }, [activeOutlet.id, activeOutlet.lat, activeOutlet.lng, activeOutlet.area]);
 
   const handleMapClickOrDrag = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -230,7 +181,7 @@ export function AddressModal() {
       setLocality(
         `Pinned Location (${newLat.toFixed(3)}°N, ${newLng.toFixed(3)}°E)`
       );
-      setCity("Gwalior");
+      setCity(activeOutlet.city || "");
     }
   };
 
@@ -241,7 +192,7 @@ export function AddressModal() {
           setPinLat(Number(pos.coords.latitude.toFixed(5)));
           setPinLng(Number(pos.coords.longitude.toFixed(5)));
           setLocality("Current GPS Location");
-          setCity("Gwalior");
+          setCity(activeOutlet.city || "");
         },
         () => {
           setFormError("Could not access your location. Please place the pin on the map.");

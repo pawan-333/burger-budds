@@ -3,9 +3,10 @@
 import React from "react";
 import Link from "next/link";
 import { MapPin, Phone, ShieldCheck, Store } from "lucide-react";
-import { DEFAULT_OUTLET_SLUG, SEED_OUTLET } from "@/lib/seed-data";
+import { useApp } from "@/context/AppContext";
 
 export function GlobalFooter() {
+  const { activeOutlet } = useApp();
   return (
     <footer className="bg-brand-secondary text-text-onSecondary mt-16 border-t border-text-onSecondary/15">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 grid grid-cols-1 md:grid-cols-4 gap-8">
@@ -36,7 +37,7 @@ export function GlobalFooter() {
           </p>
           <div className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-primary">
             <ShieldCheck className="w-4 h-4" />
-            <span>FSSAI Lic. No. 21424010001892</span>
+            <span>{activeOutlet.fssai_number ? `FSSAI Lic. No. ${activeOutlet.fssai_number}` : "Food licence details awaiting verification"}</span>
           </div>
         </div>
 
@@ -48,7 +49,7 @@ export function GlobalFooter() {
           <ul className="space-y-2 text-xs font-semibold">
             <li>
               <Link
-                href={`/order/${DEFAULT_OUTLET_SLUG}`}
+                href={`/order/${activeOutlet.slug}`}
                 className="hover:underline"
               >
                 Order Online Menu
@@ -118,18 +119,18 @@ export function GlobalFooter() {
         {/* Column 4: Flagship Outlet */}
         <div className="space-y-2.5">
           <h3 className="text-sm font-extrabold uppercase tracking-wider text-brand-primary">
-            Flagship Gwalior Outlet
+            Current outlet
           </h3>
           <p className="text-xs flex items-start gap-2 text-text-onSecondary/90">
             <MapPin className="w-4 h-4 text-brand-primary shrink-0 mt-0.5" />
-            <span>{SEED_OUTLET.address}</span>
+            <span>{activeOutlet.address}</span>
           </p>
           <p className="text-xs flex items-center gap-2 text-text-onSecondary/90">
             <Phone className="w-4 h-4 text-brand-primary shrink-0" />
-            <span>{SEED_OUTLET.phone}</span>
+            <span>{activeOutlet.phone}</span>
           </p>
           <p className="text-xs text-text-onSecondary/80">
-            Open Daily: {SEED_OUTLET.timings.open} – {SEED_OUTLET.timings.close}
+            Open Daily: {activeOutlet.timings.open} – {activeOutlet.timings.close}
           </p>
         </div>
       </div>
