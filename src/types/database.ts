@@ -43,6 +43,21 @@ export interface Outlet {
   };
   pause_until?: string | null;
   delivery_enabled?: boolean;
+  city?: string;
+  whatsapp?: string | null;
+  opening_hours?: Record<string, { open: string; close: string } | null>;
+  fssai_number?: string | null;
+  gst_number?: string | null;
+  owner_type?: 'brand' | 'franchise';
+  franchisee_id?: string | null;
+  status?: 'active' | 'paused';
+  packaging_fee?: number;
+  avg_delivery_min?: number;
+  allow_price_override?: boolean;
+  order_types?: Record<string, boolean>;
+  petpooja_restaurant_id?: string | null;
+  rapido_config?: Record<string, unknown> | null;
+  integrations_enabled?: boolean;
 }
 
 export interface Category {
