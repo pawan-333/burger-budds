@@ -234,3 +234,9 @@ export function canTransitionStatus(
 }
 
 export type { LocalStoreSchema, Address };
+
+export async function listOutlets():Promise<Outlet[]> {
+ if(!isSupabaseConfigured())return [SEED_OUTLET,BADAGAON_OUTLET];
+ const sb=getSupabaseAdminClient()!;const {data,error}=await sb.from('outlets').select('*').eq('is_active',true).order('name');
+ if(error)throw error;return data || [];
+}

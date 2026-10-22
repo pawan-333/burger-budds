@@ -5,6 +5,7 @@ import { GlobalFooter } from "@/components/layout/GlobalFooter";
 import { BADAGAON_OUTLET, SEED_OUTLET } from "@/lib/seed-data";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { pageMetadata } from "@/lib/seo";
+import { outletHours } from "@/lib/outlet-hours";
 import type { Outlet } from "@/types/database";
 export const dynamic = "force-dynamic";
 export const metadata = pageMetadata("Burger Budds | Stores in Gwalior", "Find Burger Budds stores in Gwalior, view outlet details and get directions.", "/stores");
@@ -29,8 +30,8 @@ export default async function StoreLocatorPage() {
       </div>
       <div className="grid lg:grid-cols-[1.5fr_1fr] gap-6 items-start">
         <div className="space-y-4">{stores.length === 0 && <p>No stores available right now.</p>}{stores.map(store => {
-          const open = store.is_open && (!store.pause_until || new Date(store.pause_until).getTime() <= Date.now());
-          const maps = store.slug === BADAGAON_OUTLET.slug ? "https://www.google.com/maps/place/Burger+Budds+Badagaon+Restaurant/@26.232214,78.2708995,598m/data=!3m2!1e3!4b1!4m6!3m5!1s0x3976c1005a865fcf:0x7e98a7d5b315009e!8m2!3d26.232214!4d78.2708995!16s%2Fg%2F11vrvbqy0n" : `https://www.google.com/maps/search/?api=1&query=${store.lat},${store.lng}`;
+          const open = outletHours(store).open;
+          const maps = `https://www.google.com/maps/search/?api=1&query=${store.lat},${store.lng}`;
           return <article key={store.id} className="rounded-2xl bg-surface-base border border-border-subtle p-5 sm:p-6 shadow-card transition-shadow hover:shadow-floating motion-reduce:transition-none">
             <div className="flex items-start gap-4">
               <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-xl bg-brand-secondary p-2 flex items-center justify-center"><img src="/logo.png" width={80} height={80} alt="Burger Budds" className="w-full h-full object-contain" /></div>

@@ -23,3 +23,6 @@ Preserved existing merchant login/role guards and scoped order APIs. Added reusa
 
 ## Phase 3 — menu controls implemented
 Outlet stock and price routes now require scoped authorization and brand permission; customer menus merge central content with outlet availability/prices and variant overrides. Added brand catalog edit/publish API and transactional publish-to-selected/all RPC; legacy order item IDs preserved. Variant minimum price displayed as From. Files: menu/catalog routes, server-db, MenuItemCard, migration 011. Reviewed joins and outlet predicates; runtime checks follow. Remaining: catalog UI added with Phase 6, full DB publish tests.
+
+## Phase 4 (+T12.1/T12.2) — routing implemented, address flow extended later
+Landing GPS/saved-address/locality finder, nearest open radius-serviceable outlet with cancellable three-second redirect and no-outlet pickup fallback. Configurable Mapbox locality search (MAPBOX_ACCESS_TOKEN); missing config reported explicitly. Serviceability returns distance/fee/ETA. Locator retains map/cards/directions using outlet coordinates. Existing two-step pin/detail/save/delete address flow retained; removed misleading preset zones. Files: homepage, StoreFinder, locations/serviceability routes, server-db, stores. Remaining: map-provider runtime validation and someone-else recipient UI (Phase 12).

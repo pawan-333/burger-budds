@@ -1,0 +1,4 @@
+import {NextRequest,NextResponse} from 'next/server';
+export async function GET(req:NextRequest){const q=req.nextUrl.searchParams.get('q')?.trim();if(!q||q.length>200)return NextResponse.json({error:'Enter a locality or pincode'},{status:400});
+ const key=process.env.MAPBOX_ACCESS_TOKEN;if(!key)return NextResponse.json({error:'Locality search is not configured. Use current location or the address map.'},{status:503});
+ try{const r=await fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/'+encodeURIComponent(q)+'.json?country=in&limit=1&access_token='+encodeURIComponent(key),{signal:AbortSignal.timeout(8000)});const d=await r.json();const c=d.features?.[0]?.center;return NextResponse.json(c?{location:{lat:c[1],lng:c[0]}}:{error:'No location found'});}catch{return NextResponse.json({error:'Location search unavailable'},{status:503});}}

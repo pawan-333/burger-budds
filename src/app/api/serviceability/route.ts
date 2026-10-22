@@ -1,72 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
-import {
-  computeDistanceKm,
-  getMenuBundle,
-  isPointInPolygon,
-} from "@/lib/server-db";
-import { ServiceabilityResult } from "@/types/database";
-
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const lat = Number(body.lat);
-    const lng = Number(body.lng);
-    const outletSlug = body.outlet || body.outletSlug;
-
-    if (Number.isNaN(lat) || Number.isNaN(lng)) {
-      return NextResponse.json(
-        { error: "Valid latitude and longitude are required" },
-        { status: 400 }
-      );
-    }
-
-    const { outlet } = await getMenuBundle(outletSlug);
-    const distanceKm = computeDistanceKm(outlet.lat, outlet.lng, lat, lng);
-    const maxRadiusKm = Number(outlet.delivery_radius_km) || 5.0;
-
-    let serviceable = distanceKm <= maxRadiusKm;
-    if (outlet.delivery_polygon && outlet.delivery_polygon.length >= 3) {
-      serviceable = isPointInPolygon(lat, lng, outlet.delivery_polygon);
-    }
-
-    if (outlet.delivery_enabled === false) {
-      serviceable = false;
-    }
-
-    const rules = outlet.delivery_fee_rules || {
-      base_fee: 29,
-      free_above: 299,
-      per_km_above_3km: 8,
-    };
-    let deliveryFee = rules.base_fee;
-    if (distanceKm > 3) {
-      deliveryFee += Math.ceil(distanceKm - 3) * rules.per_km_above_3km;
-    }
-
-    const etaMins = Math.max(
-      25,
-      (outlet.prep_time_min || 30) + Math.round(distanceKm * 4)
-    );
-
-    const result: ServiceabilityResult = {
-      serviceable,
-      distanceKm,
-      maxRadiusKm,
-      etaMins,
-      deliveryFee,
-      outletName: outlet.name,
-      area: outlet.area,
-      message: serviceable
-        ? `Delivering in ~${etaMins} mins (${distanceKm} km from ${outlet.area})`
-        : `Location is not serviceable — outside our ${maxRadiusKm} km delivery zone around ${outlet.area}.`,
-    };
-
-    return NextResponse.json(result);
-  } catch (err) {
-    console.error("Serviceability check error:", err);
-    return NextResponse.json(
-      { error: "Failed to check serviceability" },
-      { status: 500 }
-    );
-  }
-}
+import {NextRequest,NextResponse} from 'next/server';
+import {computeDistanceKm,getMenuBundle,listOutlets} from '@/lib/server-db';
+import {outletHours} from '@/lib/outlet-hours';
+export async function POST(req:NextRequest){try{
+ const b=await req.json();const {lat,lng}=b;
+ if(!Number.isFinite(lat)||!Number.isFinite(lng)||Math.abs(lat)>90||Math.abs(lng)>180)return NextResponse.json({error:'Valid coordinates required'},{status:400});
+ const stores=b.outlet||b.outletSlug?[(await getMenuBundle(b.outlet||b.outletSlug)).outlet]:await listOutlets();
+ const ranked=stores.map(outlet=>({outlet,distanceKm:computeDistanceKm(outlet.lat,outlet.lng,lat,lng)})).sort((a,b)=>a.distanceKm-b.distanceKm);
+ const chosen=ranked.find(s=>s.distanceKm<=s.outlet.delivery_radius_km&&s.outlet.delivery_enabled!==false&&outletHours(s.outlet).open)||ranked[0];
+ if(!chosen)return NextResponse.json({serviceable:false,message:'No outlet found. Explore pickup menus.'});
+ const {outlet,distanceKm}=chosen;const rules=outlet.delivery_fee_rules;
+ const serviceable=distanceKm<=outlet.delivery_radius_km&&outlet.delivery_enabled!==false&&outletHours(outlet).open;
+ return NextResponse.json({serviceable,outlet,distanceKm,maxRadiusKm:outlet.delivery_radius_km,etaMins:outlet.prep_time_min+Math.ceil(distanceKm*4),deliveryFee:rules.base_fee+Math.max(0,Math.ceil(distanceKm-3))*rules.per_km_above_3km,outletName:outlet.name,area:outlet.area,message:serviceable?'Delivery available':'No outlet found for delivery. Explore Menu or choose pickup.'});
+ }catch{return NextResponse.json({error:'Unable to check delivery area'},{status:503});}}
