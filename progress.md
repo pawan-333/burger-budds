@@ -32,3 +32,14 @@ Per-outlet title/canonical/OG/index robots and Restaurant/Menu JSON-LD; dynamic 
 
 ## Phase 5 — offers and shared coins implemented
 Coupons scoped by outlet/approval/date/minimum with transactional usage/per-user/first-order enforcement. Offer headline generated from real rule. Brand-wide coins reserved at order creation, redeemed after paid, released on rejection/cancel and earned on delivered/paid; wallet values loaded server-side. Migration 013 and offers/wallet/pricing/menu/order/cart changes. Default redemption 20%, earn 5%; settings record created. Remaining: wire configurable redemption percentage in pricing (currently default), exercise concurrent RPCs and refund coin reversal in Phase 7.
+
+## Paused-run bug fix — 2026-10-23
+User reported menu runtime crash and duplicate /stores keys. Reproduced public read: outlets succeeds; outlet_menu_items returns PGRST205 (migration 009 not applied). Menu now uses existing outlet-scoped records only for explicitly missing catalog tables; permission/network/relationship errors remain failures and database errors become Error instances. Combined duplicate store navigation into one Store Locator / Change outlet entry. Files: server-db.ts, GlobalHeader.tsx, tests/menu-schema-compat.test.cjs. Broader phase work remains ON HOLD; no database migrations applied. Verification results below.
+
+## Approved slow-response fix — 2026-10-23
+Scope: server-db.ts, OrderMenuClient.tsx and page loading boundaries. Parallelized catalog/menu queries and deduplicated metadata/page reads within a render (React cache, no cross-request price cache). Visible-tab fallback polling now 15s instead of 2s (8x fewer scheduled requests), with overlap guard, timeout and unmount cancellation; outlet-scoped realtime remains immediate. Added accessible loading boundaries for navigation feedback. No auth, RLS, payment or database schema changes. Validation pending below. Broad phase implementation remains on hold.
+
+### Responsiveness verification
+TypeScript passed after correcting the effect closing syntax; 13 focused menu-schema/order-status tests passed. Warm localhost timings: /stores 1238ms, Badagaon menu API 1161ms (83 items), Vinay Nagar API 1201ms (10 items), all HTTP 200. Browser navigation Store Locator -> Badagaon menu verified. Cold /stores took 44s, of which 39s was development compilation; production timings are not inferred from these numbers. Temporary validation browser/server closed. Production build still running. No migrations or live DB writes performed.
+
+Production build passed (Next.js 15.5.27, 24 static pages generated). Typecheck, 13 focused regression tests and diff whitespace checks passed. Cross-check: API identity remains outlet-scoped; no cross-request menu/price cache. Security review of this change: no new credentials, schema writes or authorization changes. Existing migration/provider/coins verification gaps remain outside this paused-phase task.

@@ -99,10 +99,9 @@ export function GlobalHeader({ totalMenuItems = 10 }: GlobalHeaderProps) {
   };
 
   const navLinks = [
-    { href: "/stores", label: "Change outlet" },
     { href: "/", label: "Home" },
     { href: "/about", label: "About Us" },
-    { href: "/stores", label: "Store Locator" },
+    { href: "/stores", label: "Store Locator / Change outlet" },
     { href: `/order/${activeOutlet.slug}`, label: "Order Now" },
     { href: "/gallery", label: "Gallery" },
   ];

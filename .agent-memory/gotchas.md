@@ -1,0 +1,22 @@
+# Verified gotchas
+- Public read reproduced PGRST205 for outlet_menu_items; outlets query succeeded (2026-10-23).
+- New migration files do not establish live schema state. New-schema reads need rollout compatibility.
+- Menu fallback handles only missing catalog tables; permission/network/relationship failures remain errors.
+- Supabase plain-object errors must become Error instances before reaching Next.js page boundaries.
+- Duplicate /stores links combined; regression fix awaiting scoped commit.
+- Polling now 15s with hidden-tab/overlap guards and abort cleanup; outlet realtime retained (2026-10-23).
+- Original interrupted performance patch did not land; approved follow-up is now implemented and checked.
+- Cold local dev compilation took about 65s; this does not establish production navigation performance.
+- Badagaon API returned 200 with 83 items; outlet page returned 200 after compatibility fix.
+- Warm /stores verified 200 at 1238ms; both menu APIs ~1.2s. Cold compilation dominates first dev load.
+- Existing npm test script excludes the new menu-schema-compat test; invoke it explicitly.
+- Typecheck and 13 targeted tests passed after approved responsiveness fix (2026-10-23).
+- New tests are mocked; real RLS, payments, coin concurrency and provider delivery remain unverified.
+- Temporary .next-bugfix-check is generated/untracked; do not read or commit it.
+- Temporary validation browser/server on port 3105 were closed after checks.
+- NEXT_BUILD_DIR is the actual build-directory variable; NEXT_DIST_DIR has no effect here.
+- Dev server added a .next-bugfix-check type include to tsconfig.json; cleanup is pending.
+- Preserve baseline edits: PLAN.md, next-env.d.ts, admin page/API; do not blanket-stage the working tree.
+- Sandbox exec/apply_patch/Node tool initialization failed; approved elevated shell worked. Python unavailable.
+- Phase 5 redemption percentage is hardcoded at default 20%; configurable setting wiring remains pending.
+- Production build passed after latency fixes; live production latency and RLS/money flows remain unverified.

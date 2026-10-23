@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Check,
@@ -95,18 +95,29 @@ export function OrderMenuClient({
   const [bestsellerOnly, setBestsellerOnly] = useState<boolean>(false);
   const [newOnly, setNewOnly] = useState<boolean>(false);
 
-  // Refresh menu from server (for realtime stock & outlet open/close updates < 2 sec)
+  const refreshInFlight = useRef<AbortController | null>(null);
+
+  // Realtime updates are immediate; polling provides a fallback when visible.
   const refreshLiveMenu = useCallback(async () => {
+    if (refreshInFlight.current || document.visibilityState === "hidden") return;
+    const controller = new AbortController();
+    refreshInFlight.current = controller;
+    const timeout = setTimeout(() => controller.abort(), 15000);
     try {
       const res = await fetch(`/api/menu?outlet=${outlet.slug}`, {
         cache: "no-store",
+        signal: controller.signal,
       });
       if (!res.ok) return;
       const data = await res.json();
+      if (controller.signal.aborted) return;
       if (data.outlet) setOutlet(data.outlet);
       if (Array.isArray(data.items)) setItems(data.items);
     } catch {
-      // Ignore network hiccups
+      // Ignore network hiccups; realtime or the next poll retries.
+    } finally {
+      clearTimeout(timeout);
+      if (refreshInFlight.current === controller) refreshInFlight.current = null;
     }
   }, [outlet.slug]);
 
@@ -130,25 +141,29 @@ export function OrderMenuClient({
       ?.channel("public-menu-sync")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "items" },
+        { event: "*", schema: "public", table: "items", filter: `outlet_id=eq.${outlet.id}` },
         () => refreshLiveMenu()
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "outlets" },
+        { event: "*", schema: "public", table: "outlets", filter: `id=eq.${outlet.id}` },
         () => refreshLiveMenu()
       )
       .subscribe();
 
-    // 3. Lightweight 2s poll so any change in another window reflects within 2 sec
-    const timer = setInterval(refreshLiveMenu, 2000);
+    // 3. Poll less often and resume promptly when the customer returns.
+    const timer = setInterval(refreshLiveMenu, 15000);
+    document.addEventListener("visibilitychange", refreshLiveMenu);
 
     return () => {
       if (channel) channel.close();
       if (sub && sb) sb.removeChannel(sub);
       clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshLiveMenu);
+      refreshInFlight.current?.abort();
+      refreshInFlight.current = null;
     };
-  }, [refreshLiveMenu]);
+  }, [refreshLiveMenu, outlet.id]);
 
   const toggleDietFilter = (diet: "veg" | "nonveg" | "egg") => {
     setSelectedDiets((prev) =>

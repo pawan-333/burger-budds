@@ -1,4 +1,5 @@
 import fs from "fs";
+import { cache } from "react";
 import path from "path";
 import { createClient } from "@supabase/supabase-js";
 import WebSocket from "ws";
@@ -131,7 +132,7 @@ export function isPointInPolygon(
   return inside;
 }
 
-export async function getMenuBundle(outletSlug?: string) {
+async function loadMenuBundle(outletSlug?: string) {
   const store = isSupabaseConfigured() || process.env.NODE_ENV === "production"
     ? getInitialStore() : readLocalStore();
   const sb = isSupabaseConfigured() ? createClient(
@@ -154,7 +155,7 @@ export async function getMenuBundle(outletSlug?: string) {
       }
       if (outletError) throw outletError;
       if (outletData) {
-        const [{ data: categories }, { data: items }, { data: coupons }] =
+        const [{ data: categories }, { data: items }, { data: coupons }, { data: links, error: linkError }] =
           await Promise.all([
             sb
               .from("categories")
@@ -167,10 +168,16 @@ export async function getMenuBundle(outletSlug?: string) {
               .eq("outlet_id", outletData.id)
               .order("sort_order"),
             sb.from("coupons").select("*").eq("is_active", true),
+            sb.from("outlet_menu_items").select("*, central:menu_items(*)").eq("outlet_id", outletData.id),
           ]);
         if (categories && items) {
-          const {data:links,error:linkError}=await sb.from('outlet_menu_items').select('*, central:menu_items(*)').eq('outlet_id',outletData.id);
-          if(linkError) throw linkError;
+          // During a rolling migration, legacy outlet-scoped menus remain usable.
+          // Permission, network and relationship errors still fail closed.
+          const catalogMissing = linkError && (
+            (linkError.code === 'PGRST205' && /(?:public\.)?(?:outlet_menu_items|menu_items)/.test(linkError.message)) ||
+            (linkError.code === '42P01' && /relation ["']?(?:public\.)?(?:outlet_menu_items|menu_items)["']? does not exist/.test(linkError.message))
+          );
+          if (linkError && !catalogMissing) throw linkError;
           const resolvedItems=items.map(item=>{
             const link=links?.find(link=>link.legacy_item_id===item.id);
             if(!link || !link.central) return item;
@@ -193,7 +200,9 @@ export async function getMenuBundle(outletSlug?: string) {
       }
       throw new Error("Unable to load the outlet menu from Supabase.");
     } catch (error) {
-      throw error;
+      if (error instanceof Error) throw error;
+      const databaseError = error as { code?: string; message?: string };
+      throw Object.assign(new Error(databaseError.message || 'Unable to load the outlet menu.'), { code: databaseError.code });
     }
   }
   if (outletSlug === BADAGAON_OUTLET.slug) {
@@ -212,6 +221,9 @@ export async function getMenuBundle(outletSlug?: string) {
     coupons: store.coupons.filter((c) => c.is_active),
   };
 }
+
+// Deduplicate metadata/page reads in one server render, without sharing cached prices across requests.
+export const getMenuBundle = cache(loadMenuBundle);
 
 // Validate status transition rules per PLAN.md section 8
 const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
