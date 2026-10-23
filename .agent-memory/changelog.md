@@ -24,3 +24,5 @@ Approved performance scope implemented: OrderMenuClient.tsx, server-db.ts, globa
 2026-10-23 · approved Tansen Nagar outlet creation · migration 014, progress.md; data-only Supabase insert, no merchant account.
 
 2026-10-23 · user-approved Tansen Nagar manager provisioning · login and single-outlet membership verified; no credentials retained.
+
+2026-10-23 · merchant radius label uses outlet record; commit/push requested · merchant/page.tsx and existing admin radius edits.

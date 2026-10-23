@@ -21,3 +21,4 @@
 - Phase 5 redemption percentage is hardcoded at default 20%; configurable setting wiring remains pending.
 - Production build passed after latency fixes; live production latency and RLS/money flows remain unverified.
 - Migration 014 data payload was applied via Supabase API, not migration-history tracking; SQL is idempotent.
+- Merchant delivery radius label now reads the selected outlet record; actual Tansen zone was already centered correctly.

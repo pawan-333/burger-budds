@@ -1,182 +1,180 @@
-# Burger Budds — Online Ordering Website + Merchant App (PLAN.md)
+# Burger Budds Multi-Outlet Platform: Plan and Codex Tasks
 
-Reference: Bikkgane Biryani ordering site (bikkganebiryani.com). Same UX flow and layout, but Burger Budds branding, own backend, own merchant app.
+Yeh file Codex ko do. Ek baar mein ek phase dena (Section 6 dekho).
 
-## 1. Goal
-Ek mobile-first food delivery website jahan customer menu dekh kar order kare, address pin kare, pay kare, aur order track kare. Restaurant ke liye ek Merchant App (PWA) jo naye order pe sound + alert de, accept/reject/prepare/ready kare. Plus ek Admin panel menu, offers, delivery zone manage karne ke liye.
+---
 
-## 2. Tech Stack
-| Layer | Choice |
-|---|---|
-| Frontend | Next.js (App Router) + TypeScript + Tailwind CSS |
-| Backend/DB | Supabase (Postgres, Auth phone OTP, Realtime, Storage, RLS) |
-| Payments | Razorpay (UPI/cards) + Cash on Delivery |
-| Maps | Google Maps JS + Places API + Geocoding |
-| Merchant App | PWA at `/merchant` (installable, Realtime, alarm sound, web push). Later wrap with Capacitor for APK |
-| Rider | Simple page `/rider` (assigned orders, status buttons) — phase 2 |
-| Hosting | Vercel + Supabase |
-| Notifications | Web Push + WhatsApp order updates (phase 2) |
+## 1. Context
 
-## 3. Brand & Design System (tokens, no raw hex in components)
-Font: **Figtree** (fallback: Open Sans, Helvetica, Arial, sans-serif). Base 14px on mobile, weight 500–700.
+Burger Budds ek restaurant brand hai (Gwalior). Website `burgerbudds.in` ek **franchise / multi-outlet online ordering platform** hai: ek brand, kai outlets, ek central system.
 
-```
-color.brand.primary     = #f7ce0c   (yellow: CTAs, cart button, badges, highlights)
-color.brand.secondary   = #4c6d3e   (green: header, nav, footer, veg-safe accents)
-color.text.primary      = #212121
-color.text.secondary    = #3a3a3a
-color.text.onSecondary  = #ffffff
-color.text.onPrimary    = #212121   (always dark text on yellow)
-color.surface.base      = #ffffff
-color.surface.raised    = #f8f8f8
-color.surface.page      = #f4f1e6   (warm cream page bg)
-color.border.muted      = #d2d2d2
-color.border.subtle     = #e8eaed
-color.status.open       = #1e9e4a
-color.status.error      = #d92d20
-color.veg = #0f8a3c   color.nonveg = #d92d20   color.egg = #f0a500
+- Har outlet ka page: `/order/<outlet-slug>` (jaise `burger-budds-badagaon-gwalior`, `burger-budds-vinay-nagar-gwalior`)
+- Customer delivery ya takeaway le sakta hai, cart/checkout, order tracking (`/track`), BB Coins loyalty
+- Restaurant ke liye Merchant App (`/merchant`) jahan orders receive hote hain
+- Brand colors: yellow `#f7ce0c`, green `#4c6d3e`
+- Backend preference: Supabase
+- Design reference: Bikkgane Biryani ordering site (sirf flow/features inspire hone hain, copy nahi)
+- Payments: **Cashfree** (Razorpay nahi)
+- **ON HOLD (abhi mat banao):** Petpooja POS integration aur Rapido riders integration. Sirf data model mein future-ready placeholder rakho.
 
-radius.xs=8px  radius.sm=10px  radius.md=12px  radius.pill=999px
-shadow.1 = 0 2px 8px rgba(0,0,0,0.06)
-space: 4 / 6 / 8 / 10 / 12 / 16 / 24
-motion: instant 120ms, fast 200ms, normal 300ms
-```
-Contrast note: yellow text on green only for large text (≥18px bold). Body text on green must be white. Buttons on yellow use dark text.
+## 2. Rules for Codex
 
-Accessibility: WCAG 2.2 AA, keyboard-first, visible focus ring (2px, `color.text.primary` with 2px offset), min touch target 44px. Every component must define: default, hover, focus-visible, active, disabled, loading, error.
+1. Sabse pehle existing codebase inspect karo aur **existing stack, folder structure aur design system follow karo**. Naya framework mat lao.
+2. Koi bhi outlet-specific cheez (naam, address, phone, timing, zone, FSSAI, delivery time) **hardcode mat karo**. Sab current outlet ke record se aani chahiye.
+3. Har phase ke baad: kya badla, kaun si files, aur kaise test kiya, short summary do.
+4. Database changes migrations ke through karo. Purana data na toote.
+5. Jahan decision chahiye wahan assumption likho, phir aage badho.
+6. Bikkgane ka naam, images, text, logo ya design copy mat karo.
 
-## 4. Customer Website — Pages & Components
+## 3. Live site audit: jo issues mile
 
-### 4.1 Global Header
-- Green (`brand.secondary`) bar. Left: logo. Center (desktop): search bar "Search this outlet's menu — N items" with mic icon (voice search via Web Speech API). Right: **Track**, **Login/Profile**, **Cart** (yellow button with count badge).
-- Sub-nav row: Home, About Us, Store Locator, Order Now, Gallery.
-- Mobile: hamburger (opens drawer with same links + "Order Online" outline button + "Download The App" yellow button + store phone), logo center, icons: location, profile, cart.
+Page `/order/burger-budds-badagaon-gwalior` check karne par:
 
-### 4.2 Order/Menu Page (`/order/[outlet-slug]`)
-- **Left sidebar (desktop)**: "Menu" list of categories with item counts, active category highlighted, some categories expandable (+).
-- **Outlet header**: outlet name, info (i) icon, green **OPEN/CLOSED** badge, area + ETA ("Vinay Nagar, Gwalior • 45 Mins"), **Order Type** dropdown (Delivery / Takeaway).
-- **Offers strip**: "ENJOY FLAT 129 on every order — Use code FLAT129", "N OFFERS" dropdown listing all coupons.
-- **Filter chips** (horizontal scroll): Filters, In Stock (default on, removable), Veg, Non-Veg, Egg, On Offer, Rated 4+, Highly Ordered, Bestseller, New.
-- **Category section**: uppercase title + "N items" right aligned.
-- **Item card**: veg/non-veg mark, name, price ₹, 2-line description + "Read more", image right with overlapping **ADD +** button. After adding it becomes a **− 1 +** stepper (yellow). Two columns on desktop, one column on mobile.
-- **Item modal** (tap on card): big image, share + close buttons, veg mark, name, price, description, variants/add-ons (size, extra cheese, etc.), sticky yellow "₹269.00 | Add to Cart" bar.
-- **Sticky View Cart bar**: "View Cart • 1 Item | ₹199" (desktop floating pill, mobile full-width yellow bar bottom).
-- **Mobile bottom dock**: search field + black "Menu" button → opens category modal (list with counts).
-- Out-of-stock items: greyed, ADD disabled, label "Unavailable".
+- Badagaon page par address popup mein "Delivering from Burger Budds, Vinay Nagar (5 km zone)" dikhta hai. Outlet data leak.
+- Header logo link `vinay-nagar` outlet par jata hai, current outlet ya home par nahi.
+- Banner "ENJOY FLAT 129" aur neeche "Save flat 70 on orders above 199" match nahi karte.
+- Canonical URL `https://www.burgerbudds.in` (home) hai, outlet page ka apna nahi.
+- Phone `+91 98260 12345` dummy lagta hai.
+- FSSAI number ek hi dikh raha hai, outlet-wise nahi.
+- Filters mein Veg / Non-Veg / Egg hai par poora menu veg hai, aur item par veg/non-veg icon nahi.
+- Almost har category ke sab items ki image same stock photo hai (Pexels/Unsplash).
+- Descriptions generic hain. Naam inconsistency: "Capsicano", "Chilly Cheese Garlic Bread".
+- "Rated 4+", "Highly Ordered", "Bestseller", "New" filters ka data items par nahi dikhta.
+- Desserts mein sirf 1 item. Combos / Bestseller category missing.
+- Fries ke Small/Large variants hain par base price "from" nahi dikhata.
+- Login sirf email OTP. Privacy, Terms, Refund pages visible nahi.
+- `/merchant` public link se accessible hai.
 
-### 4.3 Checkout (`/checkout/[cartId]`)
-Sections in order:
-1. **Items Added** — line items with stepper, price; buttons "Add More Items", "Add Special Instructions".
-2. **Craving More?** — horizontal carousel of upsell items with + button.
-3. **Savings Corner** — coupon list with Apply button (disabled + hint like "Add items worth ₹30 more to apply"), "View All Offers", wallet row "Available BB Coins: 150 — Use Wallet Balance".
-4. **Delivery Details** — address + Change.
-5. **Bill Details** — Item Total, GST 5%, Delivery fee, Platform fee (configurable), Discount, **Grand Total**.
-6. Checkbox: "Yes, I would like to receive updates and exclusive offers from Burger Budds" (opt-in, unchecked by default is recommended).
-7. Sticky CTA: "Select Delivery Address" → becomes "Pay ₹X" after address selected.
-- Desktop: two columns (left items/upsell/savings, right delivery + bill + CTA). Mobile: single column, sticky bottom CTA.
+---
 
-### 4.4 Address Flow
-- Desktop: modal "Select Delivery Address" (saved addresses list; empty state: "No saved addresses yet — Add a delivery address to check availability and see your delivery time." + **+ Add New Address**).
-- **Add New Address** (2 steps on mobile, split panel on desktop):
-  - Step 1: Google map with search box + "Use my location", draggable pin, tooltip "Your order will be delivered here — Move the map to place the pin".
-  - Serviceability check on every pin move: if outside delivery zone show red banner "Location is not serviceable" and disable Save.
-  - Step 2 "Address details": green card with auto locality/city + "Change on map"; House/Flat/Office No.* ; Landmark (optional); Phone* (+91); Email (optional); Save as: Home / Office / Hotel / Other; CTA "Save Address & Deliver Here".
-- Serviceability = polygon or radius (default 5 km) around outlet, configurable in admin.
+## 4. Phases aur tasks
 
-### 4.5 Auth
-- Login/Sign up via phone OTP (Supabase Auth). Guests can browse and build cart; login required at checkout.
+### Phase 0: Data model (pehle yeh)
 
-### 4.6 Profile Menu (dropdown/drawer)
-Avatar + name + email, then: Personal Information, My Orders, Refer and Earn, BB Coins (wallet), Manage Addresses, FAQs, How to track my Refund?, Raise a Concern, **Logout**.
+- **T0.1** Outlet model banao/audit karo. Fields: id, slug, name, address, city, lat/lng, phone, whatsapp, opening hours (day-wise), is_open override, delivery radius ya polygon, min order, delivery fee, packaging fee, avg prep/delivery time, FSSAI number, GST number, owner_type (brand / franchise), franchisee_id, status (active/paused).
+- **T0.2** Menu model: central `menu_items` (brand-level) + `outlet_menu_items` (outlet_id, item_id, available, price_override, sort_order). Variants/add-ons bhi isi tarah.
+- **T0.3** Roles: `brand_admin`, `franchise_owner`, `outlet_manager`, `staff`. Row Level Security (Supabase RLS) outlet-wise lagao.
 
-### 4.7 Order Tracking (`/track/[orderId]`)
-Live status timeline via Supabase Realtime: Placed → Accepted → Preparing → Ready → Out for delivery → Delivered (or Rejected/Cancelled). Show ETA, rider name/call button, order items, bill.
+**Acceptance:** Migrations chalein, seed data mein Badagaon aur Vinay Nagar dono outlets hon, aur dono ka alag data page par dikhe.
 
-### 4.8 Other pages
-Home (hero banner, featured items, "Order Now" CTA), About Us, Store Locator (outlets + map + call), Gallery, FAQs, Terms, Privacy, Refund policy, Contact.
+### Phase 1: Outlet data leak fix
 
-## 5. Merchant App (`/merchant`, PWA)
-Login: email+password or phone OTP for staff (role: `owner`, `manager`, `staff`).
+- **T1.1** Outlet page ka header, address popup, delivery zone text, phone, timing, delivery time sab current outlet record se render karo.
+- **T1.2** Logo link brand home par ya current outlet par jaye. Outlet change karne ka clear option ("Change outlet") do.
+- **T1.3** Phone: dummy hatao, outlet ka phone dikhao, aur brand-level support number alag rakho.
+- **T1.4** FSSAI number outlet record se footer mein dikhao.
+- **T1.5** Open/Closed status timing se auto calculate ho, closing time bhi dikhe. Manager manual pause kar sake.
 
-Screens:
-1. **Live Orders** — tabs: New / Preparing / Ready / Completed. New order = full-screen alert + looping alarm sound until accepted (must unlock audio with first tap). Order card: order #, time, items, notes, customer name/phone, payment (Paid / COD ₹X), total.
-2. **Order actions**: Accept (choose prep time 10/15/20/30 min) · Reject (reason required) · Mark Preparing · Mark Ready · Hand over to rider / Out for delivery · Delivered. Print KOT (browser print, 58/80mm CSS).
-3. **Menu Manager** — toggle item In Stock/Out of Stock instantly, edit price, category-level toggle.
-4. **Store Controls** — Open/Close toggle, pause orders for 30/60 min, set prep time, delivery on/off.
-5. **Reports** — today/week orders, revenue, top items, cancellation rate. Export CSV.
-6. **Settings** — printer, sound volume, staff users.
-- Web Push + Realtime subscription so orders arrive even if screen is off; auto-reconnect indicator ("Connected / Offline").
-- Unaccepted for 3 min → repeat alert; 5 min → auto-flag to owner via WhatsApp/SMS (phase 2).
+**Acceptance:** Badagaon page par kahin bhi "Vinay Nagar" na dikhe aur ulta bhi. Har outlet page par uska hi data ho.
 
-## 6. Admin Panel (`/admin`, owner only)
-Categories & items CRUD (image upload, veg/non-veg/egg, variants, add-ons, tags: Bestseller/New, sort order), coupons (flat/percent, min order, first-order, usage limits), banners, delivery zone + fees, tax %, outlet timings, staff users, customers, orders, refunds, reviews, BB Coins rules.
+### Phase 2: Security aur roles
 
-## 7. Database Schema (Supabase / Postgres)
-```
-outlets(id, slug, name, address, lat, lng, phone, is_open, prep_time_min, delivery_radius_km, delivery_polygon jsonb, min_order, gst_percent, platform_fee, delivery_fee_rules jsonb, timings jsonb)
-categories(id, outlet_id, name, sort_order, parent_id, is_active)
-items(id, outlet_id, category_id, name, description, price, image_url, diet ENUM(veg,nonveg,egg), is_available, is_bestseller, is_new, rating, order_count, sort_order)
-item_variants(id, item_id, name, price_delta)
-addon_groups(id, item_id, name, min_select, max_select) ; addons(id, group_id, name, price)
-profiles(id uuid=auth.users.id, name, phone, email, wallet_balance, referral_code, referred_by)
-addresses(id, user_id, label ENUM(home,office,hotel,other), house, landmark, phone, email, lat, lng, locality, city)
-coupons(id, code, title, type, value, min_order, max_discount, first_order_only, starts_at, ends_at, usage_limit, is_active)
-carts(id, user_id, outlet_id, order_type, updated_at) ; cart_items(id, cart_id, item_id, variant_id, addons jsonb, qty, note)
-orders(id, order_no, user_id, outlet_id, order_type, address_snapshot jsonb, status ENUM(placed,accepted,preparing,ready,out_for_delivery,delivered,rejected,cancelled), reject_reason, item_total, tax, delivery_fee, platform_fee, discount, wallet_used, grand_total, coupon_code, payment_method ENUM(razorpay,cod), payment_status, razorpay_order_id, special_instructions, prep_time_min, rider_id, placed_at, accepted_at, delivered_at)
-order_items(id, order_id, item_name, variant, addons jsonb, qty, unit_price)
-order_events(id, order_id, status, actor, created_at)
-wallet_transactions(id, user_id, amount, type, ref_order_id)
-staff(id, user_id, outlet_id, role)  ; riders(id, name, phone, is_active)
-push_subscriptions(id, staff_id, endpoint, keys jsonb)
-```
-- **RLS**: customers read/write only their own carts, addresses, orders; staff read/write orders of their outlet; menu tables public read, admin write.
-- Realtime enabled on `orders` and `order_events`.
-- Prices always recomputed server-side (Edge Function) — never trust client totals.
+- **T2.1** `/merchant` ko login ke peeche karo (role-based). Bina login ke redirect.
+- **T2.2** Outlet manager sirf apne outlet ke orders, menu stock aur timing dekhe/badle. Franchise owner apne outlets ka data dekhe. Brand admin sab dekhe.
+- **T2.3** API/DB level par outlet isolation test karo (ek outlet ka user dusre ka data na padh sake).
+- **T2.4** Basic hardening: OTP par rate limiting, input validation, secrets env mein.
 
-## 8. Key Flows / APIs (Edge Functions or Next.js route handlers)
-1. `POST /api/serviceability` {lat,lng,outlet} → {serviceable, eta, fee}
-2. `POST /api/cart/price` → validates items, coupon, wallet, tax, fees, returns bill
-3. `POST /api/orders` → creates order (status `placed`), creates Razorpay order if online
-4. `POST /api/razorpay/webhook` → verify signature, mark paid, notify merchant
-5. `PATCH /api/orders/:id/status` (staff only) → status transitions validated (no skipping, reject needs reason), writes `order_events`
-6. Customer tracking subscribes to `orders` row via Realtime.
-- Cancel rule: customer can cancel only while `placed`. Refund via Razorpay on reject/cancel of paid orders.
-- Rate limiting + OTP throttling. Idempotency key on order create.
+### Phase 3: Outlet-wise menu control
 
-## 9. Responsive, Content & Edge Cases
-- Breakpoints: mobile <768, tablet 768–1024, desktop >1024. Mobile-first (most users will order on phone).
-- Long names: clamp to 2 lines; descriptions clamp to 2 lines + "Read more".
-- Empty states for: cart, addresses, orders, search results, offline network.
-- Loading skeletons for menu cards; optimistic stepper updates.
-- Tone: short, clear, friendly. Buttons have descriptive labels ("Add to Cart", "Select Delivery Address"), never "Submit"/"OK".
-- SEO: SSR menu pages, Open Graph tags, `Restaurant` + `Menu` JSON-LD, sitemap.
+- **T3.1** Merchant app mein item ON/OFF (stock), aur permitted ho to price override.
+- **T3.2** Customer site sirf us outlet ke available items dikhaye. Out-of-stock item greyed out ho.
+- **T3.3** Brand admin central menu edit kare aur "publish to all / selected outlets" kar sake.
+- **T3.4** Variants (Small/Large, Veg/Paneer) ke liye "from price" dikhao. Pizza ke liye size options ka structure ready rakho (abhi sirf 8 inch).
 
-## 10. Build Phases
-| Phase | Scope |
-|---|---|
-| 1 (MVP) | Menu page, cart, checkout, address + serviceability, OTP login, COD, order create, Merchant app (live orders, accept/reject, status, stock toggle) |
-| 2 | Razorpay online payment, coupons, wallet/BB Coins, order tracking page, KOT print, web push |
-| 3 | Admin panel full, reports, rider page, WhatsApp notifications, refer & earn |
-| 4 | Capacitor APK for merchant (and customer), reviews/ratings, loyalty |
+### Phase 4: Location routing aur Store Locator
 
-## 11. QA Checklist
-- [ ] Brand colors only via tokens; header green, CTAs yellow with dark text
-- [ ] All interactive items keyboard-reachable, visible focus, 44px touch targets
-- [ ] Text contrast ≥ 4.5:1 (body) / 3:1 (large)
-- [ ] Menu filters (Veg/Non-Veg/Egg/In Stock/Bestseller/etc.) combine correctly
-- [ ] Out-of-stock toggle in merchant app reflects on site within 2 sec
-- [ ] Address outside zone blocks order; inside zone allows
-- [ ] Bill totals match server calculation; coupon rules enforced server-side
-- [ ] New order triggers alarm on merchant device (tab open, and installed PWA)
-- [ ] Status changes update customer tracking in real time
-- [ ] Payment webhook idempotent; failed payment doesn't create paid order
-- [ ] RLS tested: user A cannot read user B's orders/addresses
-- [ ] Lighthouse mobile: Performance ≥ 85, Accessibility ≥ 95
+- **T4.1** Customer address daale (ya GPS) to nearest serviceable outlet auto select ho.
+- **T4.2** Delivery zone ke bahar ho to clear message aur takeaway ka option.
+- **T4.3** Store Locator page: map, address, timing, open/closed badge, "Order from this outlet" button.
+- **T4.4** Delivery time aur fee address distance se calculate ho.
 
-## 12. Environment Variables
-```
-NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
-NEXT_PUBLIC_GOOGLE_MAPS_KEY
-RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET
-VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY   (web push)
-```
+### Phase 5: Offers aur BB Coins
+
+- **T5.1** Offer system: brand-level aur outlet-level coupons, min order, validity, usage limit.
+- **T5.2** Banner text coupon ke asli rule se auto generate ho (FLAT129 vs flat 70 mismatch khatam).
+- **T5.3** BB Coins rule: earn aur redeem rules config se ho. Default: brand-wide shared coins (Pawan confirm kare).
+
+### Phase 6: Brand admin panel
+
+- **T6.1** Outlet add/edit/pause, franchisee assign.
+- **T6.2** Outlet-wise reports: orders, revenue, AOV, top items, cancellations, date filter, CSV export.
+- **T6.3** Central offers, banners aur menu publish.
+- **T6.4** Audit log (kisne kya badla).
+
+### Phase 7: Payments aur settlement
+
+- **T7.1** Online payment gateway integration (**Cashfree**: order create, checkout, webhook signature verification, refunds API).
+- **T7.2** Order ke saath outlet_id aur payment record store ho taaki outlet-wise settlement nikal sake.
+- **T7.3** Settlement model decide karna hai (Section 5). Uske hisaab se Cashfree split/vendor settlement ya brand-collect + manual payout.
+- **T7.4** Refund/cancellation flow.
+
+### Phase 8: Menu content aur UI quality
+
+- **T8.1** Veg/non-veg icon (green/red dot) har item par. Agar non-veg items nahi hain to Non-Veg/Egg filter hatao.
+- **T8.2** Alag image slot har item ke liye (upload via admin). Tab tak ek branded fallback image, stock repeat nahi.
+- **T8.3** Item names/descriptions cleanup: typos (Capsicano, Chilly to Chilli) aur behtar descriptions. Pawan content dega, Codex structure ready kare.
+- **T8.4** Categories: Combos aur Bestsellers top par. Category counts aur "83 Items" count real data se aayein.
+- **T8.5** Filters (Rated 4+, Highly Ordered, Bestseller, New) real data/flags se jodo ya hata do.
+- **T8.6** Mobile-first check: sticky cart bar, fast add-to-cart, category chips.
+
+### Phase 9: SEO, legal aur performance
+
+- **T9.1** Har outlet page ka unique title, meta description, canonical (apna URL), OG tags.
+- **T9.2** JSON-LD schema: `Restaurant`/`LocalBusiness`, `Menu`, opening hours, address, geo.
+- **T9.3** `sitemap.xml` (saare outlet pages) aur `robots.txt`.
+- **T9.4** Privacy Policy, Terms, Refund/Cancellation, Contact pages aur footer links.
+- **T9.5** Login mein mobile number + OTP (SMS/WhatsApp) add karo. Email optional.
+- **T9.6** Images WebP/compressed, lazy load, alt text. Lighthouse mobile 85+ target.
+
+### Phase 10: Integrations (ON HOLD, abhi skip karo)
+
+Petpooja aur Rapido dono abhi hold par hain. Is phase mein koi code mat likho. Sirf outlet record mein optional fields (`petpooja_restaurant_id`, `rapido_config`) aur integration on/off toggle ka placeholder rakho. Neeche ke tasks future reference ke liye hain.
+
+- **T10.1 Petpooja (HOLD):** Har outlet ka apna Petpooja restaurant ID/credentials map ho. Order push, menu sync aur stock sync. Failure par retry aur error log.
+- **T10.2 Rapido (HOLD):** Delivery order par rider assign/track, outlet pickup address ke saath. Status updates customer `/track` par dikhein.
+- **T10.3 (HOLD)** Integration config outlet-wise on/off ho sake.
+
+### Phase 11: QA aur launch
+
+- **T11.1** End-to-end test har outlet par: browse, cart, coupon, payment, order merchant app mein aaye, status updates, tracking, coins. (Petpooja/Rapido test abhi nahi.)
+- **T11.2** Outlet isolation, zone-bahar order, closed outlet order, aur coupon edge cases test.
+- **T11.3** Production checklist: env vars, backups, error monitoring, analytics.
+
+### Phase 12: Reference parity (Bikkgane Biryani jaisa flow)
+
+Reference: `bikkganebiryani.com/order/bikkgane-biryani-kailash-vihar-gwalior` (uEngage par bana). **Sirf flow aur features inspire hone hain. Unka naam, images, text, logo ya design copy nahi karna.** Design Burger Budds ka apna rahe (yellow `#f7ce0c`, green `#4c6d3e`).
+
+Order: T12.1 aur T12.2 ko Phase 4 ke saath, T12.3 aur T12.12 ko Phase 9 ke saath, baaki ko Phase 8 ke baad karo.
+
+- **T12.1 Store-finding flow:** Landing par "Find a store near you" screen: Use current location, pincode/locality search, ya saved address (login ke baad). Nearest serviceable outlet auto-select ho, 3 second countdown ke baad uske menu par redirect. Koi outlet serviceable na ho to "No outlet found" aur "Explore Menu" button.
+- **T12.2 Address flow (2 step):** Step 1 map par pin lagao (Use my location option). Step 2 House/Flat/Office No. (required), Landmark (optional), Phone (required), Email (optional). "Save as" Home / Office / Hotel / Other. "Order for someone else" option. Saved addresses manage karne ka page.
+- **T12.3 Login upgrade:** Mobile number + OTP primary (resend timer 30 sec), WhatsApp login, Truecaller login (agar possible ho). Captcha/security check, rate limit. Terms aur Privacy checkbox. Line: "We never share your number. Used only for order updates." Email optional.
+- **T12.4 Order types:** Delivery, Pickup abhi chalein. Dine In (table QR), In-Car, Reservation, Direct Pay (bill pay) ke liye data model aur UI placeholders banao, outlet-wise on/off toggle ke saath. Pehle phase mein sirf Delivery + Pickup live karo.
+- **T12.5 Outlet info panel:** Outlet name, OPEN/CLOSED badge, timings (Opens at / Closes at), available order types, approx delivery time, full address, **Get Directions** (Google Maps link), FSSAI number. CLOSED hone par bhi menu dikhe aur opening time clearly likha ho.
+- **T12.6 Menu discovery:** Search bar, Popular searches, Popular menu. Sort: Price low-high, Price high-low, Rating high-low. Filters: Veg / Non-Veg, On Offer, Rated 4+, In Stock, Tags. Reset aur Apply buttons. Sticky "View Cart: N items | amount" bar. Filters real data se chalein.
+- **T12.7 Account menu:** Personal Information, My Orders (past orders), Refer and Earn, Wallet (BB Coins balance), Manage Addresses, FAQs, Track my Refund, Raise a Concern, Logout. Coins redeem par note: "Final redemption happens after payment."
+- **T12.8 Profile completion:** First login par Full Name (required), Email, Gender, Date of Birth, Anniversary (sab optional) with "Add these to unlock birthday & anniversary treats." Birthday/anniversary coupon trigger bhi banao.
+- **T12.9 Help & Support:** Topic-wise support popup (order issue, payment, refund, other) aur ticket/concern raise karna. Admin panel mein ticket list.
+- **T12.10 Extra pages:** Bulk Order (form: name, phone, date, quantity, requirement), Gallery, About Us, FAQs, `/tnc`, `/privacy-policy`, `/refund-policy`. Nav: Home, About Us, Store Locator, Order Now, Gallery, Bulk Order. "Download The App" link jab app ho.
+- **T12.11 Refer and Earn:** Referral code/link, referrer aur referee dono ko BB Coins, abuse rules (ek phone ek account, min order).
+- **T12.12 SEO per outlet:** Title pattern "Burger Budds <Outlet>, <City> Online Ordering", unique meta description, canonical (apna URL), `meta-robots: index, follow`, `theme-color` (#f7ce0c), OG image brand logo se.
+
+**Acceptance:** Naya user landing se location daale, nearest outlet khule, address pin karke save kare, mobile OTP se login kare, order kare aur My Orders / Wallet / Refer and Earn dekh sake. Poore flow mein kahin bhi kisi outlet ka data dusre outlet par na dikhe.
+
+---
+
+## 5. Open decisions (Pawan ko confirm karna hai)
+
+1. **Paisa kaun collect karega:** brand (phir franchisee ko payout) ya direct franchisee? Royalty/commission kitna aur kaise?
+2. **BB Coins:** sab outlets par chalein ya outlet-wise?
+3. **Menu prices:** sab outlets par same ya outlet override allowed?
+4. **Offers:** kaun bana sakta hai, sirf brand ya franchisee bhi?
+5. **Delivery:** zone radius-based ya polygon? Delivery fee fixed ya distance-based?
+6. **Non-veg items** menu mein aayenge ya brand pure veg rahega?
+
+## 6. Codex ko dene ka tarika
+
+1. Pehle Sections 1, 2 aur Phase 0 do.
+2. Phase 0 pass hone ke baad ek ek phase alag prompt mein do, har baar Section 1-2 ka short context ke saath.
+3. Order: Phase 1, 2, 3, phir 4 (+ T12.1, T12.2), phir 9 (+ T12.3, T12.12), phir 5, 6, 7, 8, baaki Phase 12, phir 11. Phase 10 hold par hai, skip karo.
+4. Phase 1 aur 2 sabse pehle zaroori hain kyunki wahan live bugs aur security gap hain.

@@ -49,3 +49,6 @@ User explicitly approved quick outlet creation; merchant ID/password to be creat
 
 ## Tansen Nagar merchant account — 2026-10-23
 User explicitly requested provisioning and supplied a password meeting the existing 12-character minimum. Created through Supabase Auth admin API, confirmed email, and assigned legacy-compatible manager membership only to Tansen Nagar. Verified password sign-in, exactly one outlet membership and absence of super-admin access; signed out verification session. No credentials, account identifiers or session tokens stored in repository notes. No other outlet/account changes or schema changes.
+
+## Radius label and requested Git push — 2026-10-23
+Verified Tansen Nagar radius is already 5km around stored coordinates, with no custom polygon. Fixed merchant Home Delivery label to read outlet.delivery_radius_km and outlet.area rather than hardcoded Vinay Nagar. No delivery settings changed. User requested commit/push; include reviewed existing admin radius controls, updated PLAN.md and user-provided AGENTS.md. Exclude temporary output and generated config drift. 25 regression tests passed before the text-only label edit; prior production build passed. Menu-copy database write remains pending approval.

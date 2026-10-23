@@ -1239,7 +1239,7 @@ export default function MerchantAppPage() {
                 <div>
                   <p className="text-xs font-extrabold">Home Delivery Service</p>
                   <p className="text-[11px] text-text-secondary">
-                    5.0 km radius around Vinay Nagar, Gwalior
+                    {outlet.delivery_radius_km} km radius around {outlet.area}
                   </p>
                 </div>
                 <button

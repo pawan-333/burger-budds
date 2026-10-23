@@ -41,6 +41,12 @@ export async function POST(req: NextRequest) {
         lat: body.lat, lng: body.lng, is_open: false, delivery_enabled: false,
       });
       if (error) throw error;
+    } else if (body.action === "update_radius") {
+      if (typeof body.outletId !== "string" || !body.outletId || typeof body.radiusKm !== "number" || !Number.isFinite(body.radiusKm) || body.radiusKm < 0.1 || body.radiusKm > 100) {
+        return NextResponse.json({ error: "Enter a delivery radius between 0.1 and 100 km." }, { status: 400 });
+      }
+      const { data, error } = await client.from("outlets").update({ delivery_radius_km: body.radiusKm }).eq("id", body.outletId).select("id").maybeSingle();
+      if (error || !data) return NextResponse.json({ error: "Unable to update this store's delivery radius." }, { status: 400 });
     } else if (body.action === "archive_store" || body.action === "restore_store") {
       const active = body.action === "restore_store";
       const { data, error } = await client.from("outlets").update(active ? { is_active: true } : { is_active: false, is_open: false, delivery_enabled: false }).eq("id", body.outletId).select("id").maybeSingle();
