@@ -16,3 +16,4 @@
 - User-provided AGENTS.md introduces scope/decision gates; roles run inline, no extra agent discussions.
 - AGENTS.md contains CueTill/Vite/React18 facts that conflict with verified Burger Budds source.
 - Preserve existing user edits and propose AGENTS.md corrections; never silently rewrite it.
+- Tansen Nagar outlet explicitly approved and added as active/closed; user will create merchant login. No menu copying.
