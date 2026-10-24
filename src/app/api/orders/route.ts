@@ -190,7 +190,9 @@ export async function POST(req: NextRequest) {
     if (rawLines.length > 100 || rawLines.some((line) => !Number.isInteger(line.qty) || line.qty < 1 || line.qty > 50 || typeof line.itemId !== "string" || (line.addonIds && !Array.isArray(line.addonIds)))) {
       return NextResponse.json({ error: "Please check your cart quantities." }, { status: 400 });
     }
-    const walletBalance = await walletAvailable(verifiedUser?.id);
+    const walletBalance = body.useWallet
+      ? await walletAvailable(verifiedUser?.id)
+      : 0;
 
     const serverInput: ServerCartItemInput[] = rawLines.map((l) => ({
       itemId: l.itemId,
