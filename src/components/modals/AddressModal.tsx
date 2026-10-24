@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { AddressLabel, ServiceabilityResult } from "@/types/database";
+import { getCurrentLocation } from "@/lib/geolocation";
 
 
 interface PresetLocation {
@@ -49,6 +50,10 @@ export function AddressModal() {
 
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const mapBoxRef = useRef<HTMLDivElement | null>(null);
+  const locationRequest = useRef<AbortController | null>(null);
+  const serviceRequest = useRef<AbortController | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   const [mode, setMode] = useState<"list" | "add">("list");
   const [mobileStep, setMobileStep] = useState<1 | 2>(1);
@@ -117,9 +122,14 @@ export function AddressModal() {
 
   const checkPinServiceability = useCallback(
     async (lat: number, lng: number) => {
+      serviceRequest.current?.abort();
+      const controller = new AbortController();
+      serviceRequest.current = controller;
       setCheckingService(true);
+      setServiceability(null);
       try {
         const res = await fetch("/api/serviceability", {
+          signal: controller.signal,
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -128,12 +138,16 @@ export function AddressModal() {
             outlet: activeOutlet.slug,
           }),
         });
+        if (!res.ok) throw new Error("Could not check this location. Please retry.");
         const data: ServiceabilityResult = await res.json();
-        setServiceability(data);
-      } catch {
-        // Fallback local distance check
+        if (!controller.signal.aborted) setServiceability(data);
+      } catch (error) {
+        if (!controller.signal.aborted) setLocationError(error instanceof Error ? error.message : "Could not check this location. Please retry.");
       } finally {
-        setCheckingService(false);
+        if (serviceRequest.current === controller) {
+          serviceRequest.current = null;
+          setCheckingService(false);
+        }
       }
     },
     [activeOutlet.slug]
@@ -185,22 +199,45 @@ export function AddressModal() {
     }
   };
 
-  const handleUseMyLocation = () => {
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setPinLat(Number(pos.coords.latitude.toFixed(5)));
-          setPinLng(Number(pos.coords.longitude.toFixed(5)));
-          setLocality("Current GPS Location");
-          setCity(activeOutlet.city || "");
-        },
-        () => {
-          setFormError("Could not access your location. Please place the pin on the map.");
-        },
-        { timeout: 4000 }
-      );
-    } else {
-      setFormError("Location is not available in this browser. Please place the pin on the map.");
+  useEffect(() => {
+    if (!isAddressModalOpen) {
+      locationRequest.current?.abort();
+      serviceRequest.current?.abort();
+      locationRequest.current = null;
+      serviceRequest.current = null;
+      setLocating(false);
+      setLocationError(null);
+    }
+    return () => { locationRequest.current?.abort(); serviceRequest.current?.abort(); };
+  }, [isAddressModalOpen]);
+
+  const handleUseMyLocation = async () => {
+    if (locationRequest.current) return;
+    const controller = new AbortController();
+    locationRequest.current = controller;
+    setLocating(true);
+    setLocationError(null);
+    setFormError(null);
+    try {
+      const point = await getCurrentLocation(controller.signal);
+      if (controller.signal.aborted) return;
+      serviceRequest.current?.abort();
+      setServiceability(null);
+      setCheckingService(true);
+      const nextLat = Number(point.lat.toFixed(5));
+      const nextLng = Number(point.lng.toFixed(5));
+      setPinLat(nextLat);
+      setPinLng(nextLng);
+      if (nextLat === pinLat && nextLng === pinLng) void checkPinServiceability(nextLat, nextLng);
+      setLocality("Current GPS Location");
+      setCity(activeOutlet.city || "");
+    } catch (error) {
+      if (!controller.signal.aborted) setLocationError(error instanceof Error ? error.message : "Could not find your location. Please retry.");
+    } finally {
+      if (locationRequest.current === controller) {
+        locationRequest.current = null;
+        setLocating(false);
+      }
     }
   };
 
@@ -210,7 +247,7 @@ export function AddressModal() {
 
     if (serviceability && !serviceability.serviceable) {
       setFormError(
-        "Location is not serviceable. Please move the map pin inside the 5 km delivery zone."
+        `Location is not serviceable. Please move the map pin inside the ${activeOutlet.delivery_radius_km} km delivery zone.`
       );
       return;
     }
@@ -263,7 +300,7 @@ export function AddressModal() {
       loc.locality.toLowerCase().includes(mapSearch.toLowerCase())
   );
 
-  const isServiceable = serviceability ? serviceability.serviceable : true;
+  const isServiceable = serviceability?.serviceable === true && !locating;
 
   return (
     <dialog
@@ -456,12 +493,17 @@ export function AddressModal() {
                 <button
                   type="button"
                   onClick={handleUseMyLocation}
+                  disabled={locating}
+                  aria-busy={locating}
                   className="min-h-[44px] px-3.5 py-2 rounded-xs bg-surface-base border border-brand-secondary text-brand-secondary hover:bg-brand-secondarySoft font-bold text-xs inline-flex items-center justify-center gap-1.5 shrink-0 transition duration-fast"
                 >
-                  <LocateFixed className="w-4 h-4" />
-                  <span>Use my location</span>
+                  {locating ? <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" /> : <LocateFixed className="w-4 h-4" />}
+                  <span>{locating ? "Finding your location…" : "Use my location"}</span>
                 </button>
               </div>
+
+              {locationError && <p role="alert" className="text-sm text-status-error">{locationError}</p>}
+              {locating && <p role="status" className="text-xs text-text-secondary">Allow location access if prompted. Finding your phone location may take a few seconds.</p>}
 
               {/* Quick Area Chips for testing Inside vs Outside 5km zone */}
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1">

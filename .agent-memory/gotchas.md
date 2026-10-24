@@ -25,3 +25,5 @@
 - Pause/Resume fix reopens on pause_minutes=0, preserves schedule enforcement, and shows failures instead of ignoring them.
 - Production-mode localhost tabs keep old JS until reloaded; two merchant tabs showed old fixed Vinay Nagar label despite corrected build.
 - Real logged-in Badagaon Pause/Resume verified after reload; other expired merchant tab needs re-login.
+- Old address GPS used a 4s timeout and hid errors in mobile step 2; shared helper now gives bounded retry and step-1 feedback.
+- Phone GPS on HTTP LAN URLs is blocked by browser secure-context rules; use HTTPS or manual pin, never bypass browser security.

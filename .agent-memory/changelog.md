@@ -38,3 +38,5 @@ Approved performance scope implemented: OrderMenuClient.tsx, server-db.ts, globa
 2026-10-24 · radius report investigated: Chrome manager session denied /admin; Badagaon currently 10km. Await intended radius/admin login; no app changes or push.
 
 2026-10-24 · user-confirmed Badagaon radius 6km saved · migration016, local API and real merchant screen verified; no push.
+
+2026-10-24 · mobile GPS quick fix explicitly authorized with push · geolocation.ts, AddressModal, StoreFinder, geolocation tests; 18 focused tests, typecheck/build pass; mobile browser with simulated outlet GPS opens correct store and enables deliverable pin confirmation. Localhost updated; push authorized.

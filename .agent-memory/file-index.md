@@ -26,3 +26,7 @@ supabase/migrations/013_offers_coins.sql · coupon use and coins reservations ·
 tests/menu-schema-compat.test.cjs · missing catalog and permission regression tests · verified@2026-10-23
 next.config.mjs · NEXT_BUILD_DIR selects build output; default dev .next-dev · verified@2026-10-23
 src/app/loading.tsx · shared navigation skeleton, outlet/store boundaries reuse it · verified@2026-10-23
+
+src/lib/geolocation.ts · bounded GPS retry, validation, permission/HTTPS messages, abort · verified@2026-10-24
+tests/geolocation.test.cjs · 11 GPS success/error/cancel regression cases · verified@2026-10-24
+src/components/modals/AddressModal.tsx · mobile GPS feedback and stale zone-request cancellation · verified@2026-10-24
