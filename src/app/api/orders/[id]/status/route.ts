@@ -6,6 +6,7 @@ import { OrderStatus } from "@/types/database";
 import { getSupabaseServerClient, getVerifiedUser } from "@/lib/supabase/server";
 import { getGuestOrderHash, publicOrder } from "@/lib/guest-session";
 import { PUBLIC_MERCHANT_ACCESS } from "@/lib/site-access";
+import { parseRiderDetails, riderHandoverNote } from "@/lib/order-rider";
 
 export async function PATCH(
   req: NextRequest,
@@ -18,12 +19,17 @@ export async function PATCH(
     const actor: string = body.actor || "merchant";
     const prepTimeMin: number | undefined = body.prepTimeMin;
     const rejectReason: string | undefined = body.rejectReason;
+    const handingOver = actor === "merchant" && nextStatus === "out_for_delivery";
+    const rider = handingOver ? parseRiderDetails(body.riderName, body.riderPhone) : null;
+    if (handingOver && !rider) return NextResponse.json({ error: "Enter the rider's name and a valid 10-digit mobile number." }, { status: 400 });
+    // Both transition RPCs save this note in the same transaction as the status.
+    const transitionNote = rider ? riderHandoverNote(rider) : rejectReason || null;
     const sb = getSupabaseAdminClient();
     if (sb) {
       if (PUBLIC_MERCHANT_ACCESS && actor === "merchant") {
         const { data, error } = await sb.rpc("transition_public_order", {
           target_order_id: orderId, acting_user: null, next_status: nextStatus,
-          preparation_minutes: prepTimeMin || 20, rejection_reason: rejectReason || null,
+          preparation_minutes: prepTimeMin || 20, rejection_reason: transitionNote,
         });
         if (error) return NextResponse.json({ error: "Invalid order status change." }, { status: 400 });
         return NextResponse.json({ order: publicOrder(data) });
@@ -57,7 +63,7 @@ export async function PATCH(
       }
       const { data, error } = await sb.rpc("transition_order", {
         target_order_id: visible.id, acting_user: user.id, next_status: nextStatus,
-        preparation_minutes: prepTimeMin || 20, rejection_reason: rejectReason || null,
+        preparation_minutes: prepTimeMin || 20, rejection_reason: transitionNote,
       });
       if (error) return NextResponse.json({ error: "Order status change was not allowed. Please refresh and try again." }, { status: 400 });
       return NextResponse.json({ order: publicOrder(data) });

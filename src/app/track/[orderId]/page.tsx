@@ -24,6 +24,7 @@ import { OrderRecord, OrderStatus } from "@/types/database";
 import { DEFAULT_OUTLET_SLUG, SEED_OUTLET } from "@/lib/seed-data";
 import { useApp } from "@/context/AppContext";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getOrderRider } from "@/lib/order-rider";
 
 const TIMELINE_STEPS: Array<{
   status: OrderStatus;
@@ -78,6 +79,7 @@ export default function OrderTrackingPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [cancelling, setCancelling] = useState<boolean>(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const rider = order ? getOrderRider(order) : null;
 
   const fetchOrder = useCallback(async () => {
     try {
@@ -322,7 +324,7 @@ export default function OrderTrackingPage() {
               )}
 
               {/* Rider Details & Call Button */}
-              {order.order_type === "delivery" && (
+              {order.order_type === "delivery" && rider && (
                 <div className="p-4 rounded-sm bg-brand-secondary text-text-onSecondary flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-pill bg-brand-primary text-text-onPrimary flex items-center justify-center font-extrabold">
@@ -332,18 +334,17 @@ export default function OrderTrackingPage() {
                       <p className="text-xs text-brand-primary font-extrabold uppercase">
                         Assigned Delivery Partner
                       </p>
-                      <p className="text-sm font-extrabold">
-                        {order.rider_name || "Rohit Tomar"} •Vaccinated &
-                        Temperature Checked
+                      <p className="text-sm font-extrabold break-words">
+                        {rider.name}
                       </p>
                     </div>
                   </div>
                   <a
-                    href={`tel:${order.rider_phone || "+919755011223"}`}
+                    href={`tel:${rider.phone}`}
                     className="min-h-[40px] px-4 py-2 rounded-xs bg-brand-primary text-text-onPrimary font-extrabold text-xs inline-flex items-center justify-center gap-1.5"
                   >
                     <Phone className="w-3.5 h-3.5" />
-                    <span>Call Rider ({order.rider_phone || "+91 97550 11223"})</span>
+                    <span>Call Rider ({rider.phone})</span>
                   </a>
                 </div>
               )}

@@ -29,3 +29,7 @@
 - Phone GPS on HTTP LAN URLs is blocked by browser secure-context rules; use HTTPS or manual pin, never bypass browser security.
 
 - Checkout previously showed hardcoded INR 299/29 and item-only grand total after pricing failure. Local fix uses outlet rules and marks estimates; user waived runtime checks.
+
+- Deployed coin_reservations table is missing (PGRST205, read-only confirmed 2026-10-24). Both quote and order routes skip wallet lookup when coins are off; wallet redemption remains blocked until its schema is deployed.
+
+- transition_order/transition_public_order use rejection_reason as the generic status-event note too; manual rider snapshot uses rider-handover JSON there without modifying reject_reason on handover. Preserve that note when changing RPCs.

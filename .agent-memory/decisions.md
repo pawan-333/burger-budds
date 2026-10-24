@@ -23,3 +23,5 @@
 - 2026-10-24 user confirmed Badagaon delivery radius 6km; saved and browser/API verified, other outlet settings unchanged.
 
 - 2026-10-24 user set Badagaon free delivery from INR 349, otherwise flat INR 29 across its zone; no per-km surcharge. User explicitly requested no tests for this task.
+
+- 2026-10-24 user approved only manual rider handover name/mobile and customer tracking display. Persist in existing atomic status-event note; no external rider integration or schema change.

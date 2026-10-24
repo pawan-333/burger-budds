@@ -9,3 +9,5 @@
 - GPS requires secure context and permission; longer acquisition may be needed. MDN getCurrentPosition docs checked 2026-10-24: https://developer.mozilla.org/en-US/docs/Web/API/Geolocation/getCurrentPosition
 
 - Approved delivery marker (2026-10-24): large yellow drop pin, green outline, white center; tip anchors exact point. GPS button icon is separate.
+
+- Manual rider handover (2026-10-24): inline name/mobile form, Save & Hand Over, visible errors/pending; customer sees saved rider name and tel link after assignment.

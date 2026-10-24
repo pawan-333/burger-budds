@@ -13,3 +13,5 @@
 2026-10-24 · Map marker was confused with the GPS button icon → use the screenshot target to distinguish marker appearance from button action before proposing edits.
 
 2026-10-24 · User flagged slow handling of a small fee update → change scoped outlet settings and dependent labels directly, honor no-test requests and explain any necessary total-calculation scope immediately.
+
+2026-10-24 · Optional wallet dependency was skipped in quote but missed in order POST → trace and regression-test both quote and submission when fixing optional payment/loyalty dependencies.

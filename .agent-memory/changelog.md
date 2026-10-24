@@ -46,3 +46,9 @@ Approved performance scope implemented: OrderMenuClient.tsx, server-db.ts, globa
 2026-10-24 · approved Badagaon delivery rule INR 349+/FREE, below INR 349 flat INR 29 · migration017, checkout, cart/price, progress/memory; DB saved; no tests/build/browser checks per user; no push.
 
 2026-10-24 · fresh user request to commit/push the Badagaon delivery-fee and checkout fix; no additional tests requested or run.
+
+2026-10-24 · COD order fix: skip wallet lookup when coins off · orders route, order-placement tests, progress/memory; 22 tests + typecheck pass; no real order or push.
+
+2026-10-24 · approved manual rider name/mobile handover + customer tracking contact · merchant/status/track, order-rider helper and status tests; 29 tests/typecheck pass; no live order or push.
+
+2026-10-24 · fresh commit/push authorization for pending COD fix and rider handover feature; source already covered by 29 focused tests/typecheck.

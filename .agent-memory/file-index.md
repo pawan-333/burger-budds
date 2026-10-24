@@ -36,3 +36,10 @@ src/components/maps/DeliveryMap.tsx · Leaflet delivery pin, tip anchor, drag/cl
 src/app/checkout/[cartId]/page.tsx · outlet-based fees, consistent estimates, confirmed bill guard · reviewed@2026-10-24
 src/app/api/cart/price/route.ts · server pricing; wallet lookup only when redeeming · reviewed@2026-10-24
 supabase/migrations/017_set_badagaon_delivery_fees.sql · Badagaon 349/29 fee rule; data applied · reviewed@2026-10-24
+
+src/app/api/orders/route.ts · verified-user orders, COD creation; wallet read only when requested · verified@2026-10-24
+tests/order-placement.test.cjs · COD/coins dependency, fee boundaries, quote parity, DB failure · verified@2026-10-24
+
+src/lib/order-rider.ts · validates rider contact; encodes/reads atomic handover event notes · verified@2026-10-24
+src/app/api/orders/[id]/status/route.ts · validates manual rider details and passes transaction note · verified@2026-10-24
+src/app/track/[orderId]/page.tsx · reads assigned rider contact for customer call link · verified@2026-10-24

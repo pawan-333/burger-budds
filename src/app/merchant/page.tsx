@@ -41,6 +41,7 @@ import { MerchantLogin } from "@/components/merchant/MerchantLogin";
 import { PUBLIC_MERCHANT_ACCESS } from "@/lib/site-access";
 import { verifyMerchantAccess } from "@/lib/merchant-access";
 import { outletHours } from "@/lib/outlet-hours";
+import { parseRiderDetails } from "@/lib/order-rider";
 
 export default function MerchantAppPage() {
   const { notifyRealtimeUpdate } = useApp();
@@ -101,6 +102,10 @@ export default function MerchantAppPage() {
     "Item out of stock"
   );
   const [printingOrder, setPrintingOrder] = useState<OrderRecord | null>(null);
+  const [handoverOrderId, setHandoverOrderId] = useState<string | null>(null);
+  const [riderName, setRiderName] = useState("");
+  const [riderPhone, setRiderPhone] = useState("");
+  const [riderError, setRiderError] = useState<string | null>(null);
 
   const playKitchenBellTone = useCallback(() => {
     if (!audioUnlocked || soundMuted || typeof window === "undefined") return;
@@ -249,9 +254,9 @@ export default function MerchantAppPage() {
   const handleOrderStatusChange = async (
     orderId: string,
     status: OrderStatus,
-    extra?: { prepTimeMin?: number; rejectReason?: string }
+    extra?: { prepTimeMin?: number; rejectReason?: string; riderName?: string; riderPhone?: string }
   ) => {
-    if (pendingOrderIds.current.has(orderId)) return;
+    if (pendingOrderIds.current.has(orderId)) return false;
     pendingOrderIds.current.add(orderId);
     orderRevision.current += 1;
     setPendingOrders(previous => ({ ...previous, [orderId]: true }));
@@ -265,6 +270,8 @@ export default function MerchantAppPage() {
           actor: "merchant",
           prepTimeMin: extra?.prepTimeMin,
           rejectReason: extra?.rejectReason,
+          riderName: extra?.riderName,
+          riderPhone: extra?.riderPhone,
         }),
       });
       if (res.ok) {
@@ -273,6 +280,7 @@ export default function MerchantAppPage() {
         setOrders(previous => previous.map(order => order.id === orderId ? data.order : order));
         notifyRealtimeUpdate("order_updated", data.order);
         setRejectingOrderId(null);
+        return true;
       } else {
         const data = await res.json();
         setOrderActionError(data.error || "Unable to update order. Please refresh and try again.");
@@ -283,6 +291,17 @@ export default function MerchantAppPage() {
       pendingOrderIds.current.delete(orderId);
       setPendingOrders(previous => { const next = { ...previous }; delete next[orderId]; return next; });
     }
+    return false;
+  };
+
+  const handleRiderHandover = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!handoverOrderId) return;
+    const rider = parseRiderDetails(riderName, riderPhone);
+    if (!rider) { setRiderError("Enter the rider's name and a valid 10-digit mobile number."); return; }
+    setRiderError(null);
+    const saved = await handleOrderStatusChange(handoverOrderId, "out_for_delivery", { riderName: rider.name, riderPhone: rider.phone });
+    if (saved) { setHandoverOrderId(null); setRiderName(""); setRiderPhone(""); }
   };
 
   const handleToggleItemStock = async (
@@ -992,15 +1011,13 @@ export default function MerchantAppPage() {
                         )}
 
                         {ord.status === "ready" && (
+                          <div className="space-y-3">
                           <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
-                              onClick={() =>
-                                handleOrderStatusChange(
-                                  ord.id,
-                                  "out_for_delivery"
-                                )
-                              }
+                              onClick={() => { setHandoverOrderId(ord.id); setRiderName(""); setRiderPhone(""); setRiderError(null); setOrderActionError(null); }}
+                              aria-expanded={handoverOrderId === ord.id}
+                              aria-controls={`rider-form-${ord.id}`}
                               className="min-h-[44px] rounded-xs bg-brand-secondary text-text-onSecondary font-extrabold text-xs flex items-center justify-center gap-1.5"
                             >
                               <Bike className="w-4 h-4 text-brand-primary" />
@@ -1016,6 +1033,25 @@ export default function MerchantAppPage() {
                               <CheckCircle2 className="w-4 h-4" />
                               <span>Mark Delivered</span>
                             </button>
+                          </div>
+                          {handoverOrderId === ord.id && (
+                            <form id={`rider-form-${ord.id}`} aria-label="Rider details" onSubmit={handleRiderHandover} className="p-3 rounded-xs border border-border-subtle bg-surface-raised space-y-3">
+                              <p className="text-sm font-extrabold">Rider details</p>
+                              <div className="space-y-1">
+                                <label htmlFor={`rider-name-${ord.id}`} className="text-xs font-bold">Rider name</label>
+                                <input id={`rider-name-${ord.id}`} value={riderName} onChange={event => setRiderName(event.target.value)} required maxLength={80} autoComplete="off" disabled={pendingOrders[ord.id]} className="w-full min-h-[44px] px-3 rounded-xs border border-border-muted bg-surface-base text-sm" />
+                              </div>
+                              <div className="space-y-1">
+                                <label htmlFor={`rider-phone-${ord.id}`} className="text-xs font-bold">Rider mobile number</label>
+                                <input id={`rider-phone-${ord.id}`} type="tel" inputMode="tel" value={riderPhone} onChange={event => setRiderPhone(event.target.value)} required maxLength={18} autoComplete="off" placeholder="10-digit mobile number" disabled={pendingOrders[ord.id]} className="w-full min-h-[44px] px-3 rounded-xs border border-border-muted bg-surface-base text-sm" />
+                              </div>
+                              {(riderError || orderActionError) && <p role="alert" className="text-xs text-status-error">{riderError || orderActionError}</p>}
+                              <div className="flex gap-2">
+                                <button type="submit" disabled={pendingOrders[ord.id]} className="flex-1 min-h-[44px] px-3 rounded-xs bg-brand-secondary text-text-onSecondary text-xs font-extrabold">{pendingOrders[ord.id] ? "Saving…" : "Save & Hand Over"}</button>
+                                <button type="button" disabled={pendingOrders[ord.id]} onClick={() => setHandoverOrderId(null)} className="min-h-[44px] px-3 rounded-xs border border-border-muted text-xs font-bold">Cancel</button>
+                              </div>
+                            </form>
+                          )}
                           </div>
                         )}
 

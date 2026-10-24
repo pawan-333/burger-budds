@@ -3,14 +3,19 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
+const riderScope = { exports: {} };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/order-rider.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, riderScope);
+const { getOrderRider, parseRiderDetails, riderHandoverNote } = riderScope.exports;
 
-function loadRoute({ guestHash = null, user = null, publicAccess = true, membership = null } = {}) {
+function loadRoute({ guestHash = null, user = null, publicAccess = true, membership = null, rpcError = false } = {}) {
   const calls = [];
   const order = { id: 'test-order', status: 'placed', guest_session_hash: 'private', items: [{ qty: 1 }], events: [] };
   const sb = {
     rpc: async (name, args) => {
       calls.push({ name, args });
+      if (rpcError) return { data: null, error: { message: 'Transition failed' } };
       order.status = name === 'cancel_guest_order' ? 'cancelled' : args.next_status;
+      if (args.next_status === 'out_for_delivery') order.events.push({ status: 'out_for_delivery', actor: 'merchant', note: args.rejection_reason, created_at: new Date().toISOString() });
       return { data: { ...order }, error: null };
     },
     from: (table) => {
@@ -24,6 +29,7 @@ function loadRoute({ guestHash = null, user = null, publicAccess = true, members
     '@/lib/supabase/server': { getVerifiedUser: async () => user, getSupabaseServerClient: async () => sb },
     '@/lib/guest-session': { getGuestOrderHash: async () => guestHash, publicOrder: ({ guest_session_hash, ...visible }) => visible },
     '@/lib/site-access': { PUBLIC_MERCHANT_ACCESS: publicAccess },
+    '@/lib/order-rider': riderScope.exports,
   };
   const source = fs.readFileSync('src/app/api/orders/[id]/status/route.ts', 'utf8');
   const scope = { exports: {}, require: (name) => modules[name], process, console };
@@ -49,6 +55,75 @@ test('merchant UI accept action reaches public merchant RPC without authenticati
   assert.equal(route.calls[0].name, 'transition_public_order');
   assert.equal(route.calls[0].args.next_status, 'accepted');
   assert.equal(route.calls[0].args.preparation_minutes, 15);
+});
+
+test('handover saves normalized rider contact with the status and reloads from events', async () => {
+  const route = loadRoute();
+  const result = await route.patch({ status: 'out_for_delivery', riderName: ' Test Rider ', riderPhone: '90000 00000' });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.order.status, 'out_for_delivery');
+  const rider = getOrderRider(JSON.parse(JSON.stringify(result.data.order)));
+  assert.equal(rider.name, 'Test Rider');
+  assert.equal(rider.phone, '+919000000000');
+  assert.equal(route.calls[0].name, 'transition_public_order');
+});
+
+test('private handover keeps staff membership checks and verified actor', async () => {
+  const route = loadRoute({ publicAccess: false, user: { id: 'assigned-staff' }, membership: { outlet_id: 'store-a' } });
+  const result = await route.patch({ status: 'out_for_delivery', riderName: 'Test Rider', riderPhone: '+91 90000 00000' });
+  assert.equal(result.status, 200);
+  assert.equal(route.calls[0].name, 'transition_order');
+  assert.equal(route.calls[0].args.acting_user, 'assigned-staff');
+  assert.equal(getOrderRider(result.data.order).phone, '+919000000000');
+});
+
+test('handover requires a real name and valid mobile before any status write', async () => {
+  for (const details of [{}, { riderName: ' ', riderPhone: '9000000000' }, { riderName: 'Test Rider', riderPhone: '123' }, { riderName: 'Test Rider', riderPhone: '9000000000abc' }]) {
+    const route = loadRoute();
+    assert.equal((await route.patch({ status: 'out_for_delivery', ...details })).status, 400);
+    assert.equal(route.calls.length, 0);
+  }
+});
+
+test('rider contact cannot bypass private merchant authorization', async () => {
+  for (const user of [null, { id: 'unassigned-staff' }]) {
+    const route = loadRoute({ publicAccess: false, user });
+    const result = await route.patch({ status: 'out_for_delivery', riderName: 'Test Rider', riderPhone: '9000000000' });
+    assert.equal(result.status, 403);
+    assert.equal(route.calls.length, 0);
+  }
+});
+
+test('failed handover transaction is not reported as saved', async () => {
+  const result = await loadRoute({ rpcError: true }).patch({ status: 'out_for_delivery', riderName: 'Test Rider', riderPhone: '9000000000' });
+  assert.equal(result.status, 400);
+  assert.equal(result.data.order, undefined);
+});
+
+test('tracking uses the latest handover and never invents rider details', () => {
+  assert.equal(getOrderRider({ events: [] }), null);
+  assert.equal(getOrderRider({ events: [{ status: 'out_for_delivery', actor: 'merchant', note: 'rider-handover:broken' }] }), null);
+  const events = [
+    { status: 'out_for_delivery', actor: 'merchant', created_at: '2026-01-01', note: riderHandoverNote(parseRiderDetails('Earlier Rider', '9000000000')) },
+    { status: 'out_for_delivery', actor: 'merchant', created_at: '2026-02-01', note: riderHandoverNote(parseRiderDetails('Latest Rider', '9000000001')) },
+    { status: 'delivered', actor: 'merchant', created_at: '2026-03-01', note: null },
+  ];
+  assert.equal(getOrderRider({ events }).name, 'Latest Rider');
+  assert.equal(events[0].created_at, '2026-01-01');
+});
+
+test('handover form keeps inputs on save failure and closes only after success', async () => {
+  const source = fs.readFileSync('src/app/merchant/page.tsx', 'utf8');
+  const handler = source.slice(source.indexOf('const handleRiderHandover ='), source.indexOf('const handleToggleItemStock ='));
+  for (const saved of [false, true]) {
+    const calls = [], closed = [];
+    const scope = { exports: {}, handoverOrderId: 'test-order', riderName: 'Test Rider', riderPhone: '9000000000', parseRiderDetails, setRiderError: () => {}, setRiderName: () => {}, setRiderPhone: () => {}, setHandoverOrderId: id => closed.push(id), handleOrderStatusChange: async (...args) => { calls.push(args); return saved; } };
+    vm.runInNewContext(ts.transpileModule(handler + '\nexports.submit = handleRiderHandover;', { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, scope);
+    await scope.exports.submit({ preventDefault() {} });
+    assert.equal(calls[0][1], 'out_for_delivery');
+    assert.equal(calls[0][2].riderPhone, '+919000000000');
+    assert.equal(closed.length, saved ? 1 : 0);
+  }
 });
 
 test('private merchant access rejects unauthenticated order updates', async () => {
