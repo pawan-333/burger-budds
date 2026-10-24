@@ -26,3 +26,5 @@ Approved performance scope implemented: OrderMenuClient.tsx, server-db.ts, globa
 2026-10-23 · user-approved Tansen Nagar manager provisioning · login and single-outlet membership verified; no credentials retained.
 
 2026-10-23 · merchant radius label uses outlet record; commit/push requested · merchant/page.tsx and existing admin radius edits.
+
+2026-10-24 · user-approved Badagaon hours 11:00–21:30 daily; accepting orders enabled · migration015, progress.md; 5 boundary checks passed.

@@ -17,3 +17,4 @@
 - AGENTS.md contains CueTill/Vite/React18 facts that conflict with verified Burger Budds source.
 - Preserve existing user edits and propose AGENTS.md corrections; never silently rewrite it.
 - Tansen Nagar outlet added as active/closed. User later authorized manager provisioning; login verified. No menu copying.
+- User confirmed Badagaon daily hours 11:00–21:30 India time on 2026-10-24; data applied, manual closure remains supported.

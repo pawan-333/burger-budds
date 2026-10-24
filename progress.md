@@ -52,3 +52,6 @@ User explicitly requested provisioning and supplied a password meeting the exist
 
 ## Radius label and requested Git push — 2026-10-23
 Verified Tansen Nagar radius is already 5km around stored coordinates, with no custom polygon. Fixed merchant Home Delivery label to read outlet.delivery_radius_km and outlet.area rather than hardcoded Vinay Nagar. No delivery settings changed. User requested commit/push; include reviewed existing admin radius controls, updated PLAN.md and user-provided AGENTS.md. Exclude temporary output and generated config drift. 25 regression tests passed before the text-only label edit; prior production build passed. Menu-copy database write remains pending approval.
+
+## Badagaon daily hours — 2026-10-24
+User specified daily 11:00 AM–9:30 PM. Diagnosed is_open=false and empty timings. Added idempotent migration 015, then applied its exact outlet patch via existing admin API client to Badagaon only: timings 11:00/21:30, is_open=true, pause cleared. No radius/delivery/menu/account changes. Verified five India-time opening/closing/manual-close checks; current computed status OPEN. API data application does not mark Supabase migration history; SQL is safe to replay.
