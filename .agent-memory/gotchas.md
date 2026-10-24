@@ -23,3 +23,5 @@
 - Migration 014 data payload was applied via Supabase API, not migration-history tracking; SQL is idempotent.
 - Merchant delivery radius label now reads the selected outlet record; actual Tansen zone was already centered correctly.
 - Pause/Resume fix reopens on pause_minutes=0, preserves schedule enforcement, and shows failures instead of ignoring them.
+- Production-mode localhost tabs keep old JS until reloaded; two merchant tabs showed old fixed Vinay Nagar label despite corrected build.
+- Real logged-in Badagaon Pause/Resume verified after reload; other expired merchant tab needs re-login.

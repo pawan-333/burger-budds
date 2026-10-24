@@ -18,3 +18,6 @@
 - Preserve existing user edits and propose AGENTS.md corrections; never silently rewrite it.
 - Tansen Nagar outlet added as active/closed. User later authorized manager provisioning; login verified. No menu copying.
 - User confirmed Badagaon daily hours 11:00–21:30 India time on 2026-10-24; data applied, manual closure remains supported.
+
+- 2026-10-24 user rule: fix and verify locally first. Push to GitHub only after a fresh explicit git push request; earlier approvals do not authorize later fixes.
+- 2026-10-24 user confirmed Badagaon delivery radius 6km; saved and browser/API verified, other outlet settings unchanged.

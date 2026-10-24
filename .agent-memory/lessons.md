@@ -7,3 +7,4 @@
 2026-10-23 · Node write scripts contained invalid triple quotes → use valid JavaScript strings and syntax-check complex scripts.
 2026-10-23 · Surgical effect replacement dropped a closing parenthesis → syntax/typecheck every hook edit before browser checks.
 2026-10-24 · Resume only cleared pause while leaving manual closure → test resume from closed and paused states, not only already-open state.
+2026-10-24 · Urgent local fix was pushed using older approval → require a fresh explicit git push request for every later push; default to localhost only.

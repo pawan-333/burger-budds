@@ -30,3 +30,11 @@ Approved performance scope implemented: OrderMenuClient.tsx, server-db.ts, globa
 2026-10-24 · user-approved Badagaon hours 11:00–21:30 daily; accepting orders enabled · migration015, progress.md; 5 boundary checks passed.
 
 2026-10-24 · approved merchant Pause/Resume repair · api/menu, merchant/page, outlet-controls tests; 7 controls + 9 order tests/typecheck passed; build pending.
+
+2026-10-24 · merchant control build passed; 0df8f77 was pushed before user clarified local-only scope. No further pushes authorized. Next: run newest validation build on localhost for user testing.
+
+2026-10-24 · actual Chrome localhost controls verified: Pause/CLOSED then Resume/OPEN; stale tab reload fixed radius label. No push.
+
+2026-10-24 · radius report investigated: Chrome manager session denied /admin; Badagaon currently 10km. Await intended radius/admin login; no app changes or push.
+
+2026-10-24 · user-confirmed Badagaon radius 6km saved · migration016, local API and real merchant screen verified; no push.
