@@ -27,3 +27,5 @@
 - Real logged-in Badagaon Pause/Resume verified after reload; other expired merchant tab needs re-login.
 - Old address GPS used a 4s timeout and hid errors in mobile step 2; shared helper now gives bounded retry and step-1 feedback.
 - Phone GPS on HTTP LAN URLs is blocked by browser secure-context rules; use HTTPS or manual pin, never bypass browser security.
+
+- Checkout previously showed hardcoded INR 299/29 and item-only grand total after pricing failure. Local fix uses outlet rules and marks estimates; user waived runtime checks.

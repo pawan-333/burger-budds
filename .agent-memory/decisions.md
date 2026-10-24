@@ -21,3 +21,5 @@
 
 - 2026-10-24 user rule: fix and verify locally first. Push to GitHub only after a fresh explicit git push request; earlier approvals do not authorize later fixes.
 - 2026-10-24 user confirmed Badagaon delivery radius 6km; saved and browser/API verified, other outlet settings unchanged.
+
+- 2026-10-24 user set Badagaon free delivery from INR 349, otherwise flat INR 29 across its zone; no per-km surcharge. User explicitly requested no tests for this task.

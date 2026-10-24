@@ -15,7 +15,9 @@ export async function POST(req: NextRequest) {
       body.orderType === "takeaway" ? "takeaway" : "delivery";
     const couponCode: string | null = body.couponCode || null;
     const useWallet = Boolean(body.useWallet);
-    const walletBalance = await walletAvailable((await getVerifiedUser())?.id);
+    const walletBalance = useWallet
+      ? await walletAvailable((await getVerifiedUser())?.id)
+      : 0;
     const distanceKm =
       typeof body.distanceKm === "number" ? body.distanceKm : 1.8;
 

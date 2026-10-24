@@ -32,6 +32,7 @@ import {
   BillBreakdown,
   Coupon,
   MenuItem,
+  Outlet,
   PaymentMethod,
 } from "@/types/database";
 
@@ -63,6 +64,8 @@ export default function CheckoutPage() {
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>(SEED_ITEMS);
   const [coupons, setCoupons] = useState<Coupon[]>(SEED_COUPONS);
+  const [pricingOutlet, setPricingOutlet] = useState<Outlet | null>(null);
+  const outletForPricing = pricingOutlet?.slug === activeOutlet.slug ? pricingOutlet : activeOutlet;
   const [showInstructionsBox, setShowInstructionsBox] = useState<boolean>(
     Boolean(specialInstructions)
   );
@@ -70,27 +73,35 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod");
   const [pickupPhone, setPickupPhone] = useState("");
   const requestIdentity = useRef<{ signature: string; key: string } | null>(null);
+  const billRequest = useRef(0);
 
   const [bill, setBill] = useState<BillBreakdown | null>(null);
   const [loadingBill, setLoadingBill] = useState<boolean>(false);
+  const [billError, setBillError] = useState<string | null>(null);
   const [placingOrder, setPlacingOrder] = useState<boolean>(false);
   const [orderError, setOrderError] = useState<string | null>(null);
 
   // Fetch live menu & coupons
   useEffect(() => {
-    fetch(`/api/menu?outlet=${activeOutlet.slug}`, { cache: "no-store" })
+    const controller = new AbortController();
+    fetch(`/api/menu?outlet=${activeOutlet.slug}`, { cache: "no-store", signal: controller.signal })
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data.items)) setMenuItems(data.items);
         if (Array.isArray(data.coupons)) setCoupons(data.coupons);
+        if (data.outlet?.slug === activeOutlet.slug) setPricingOutlet(data.outlet);
       })
       .catch(() => {});
+    return () => controller.abort();
   }, [activeOutlet.slug]);
 
   // Recompute server-side bill whenever cart/coupon/wallet/address/orderType changes
   const fetchServerBill = useCallback(async () => {
+    const request = ++billRequest.current;
+    setBill(null);
+    setBillError(null);
     if (cartItems.length === 0) {
-      setBill(null);
+      setLoadingBill(false);
       return;
     }
     setLoadingBill(true);
@@ -115,14 +126,13 @@ export default function CheckoutPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (res.ok) {
-        const data: BillBreakdown = await res.json();
-        setBill(data);
-      }
+      if (!res.ok) throw new Error("Could not confirm your bill. Please retry.");
+      const data: BillBreakdown = await res.json();
+      if (request === billRequest.current) setBill(data);
     } catch {
-      // Fallback handled by memo
+      if (request === billRequest.current) setBillError("Could not confirm your bill. Please retry.");
     } finally {
-      setLoadingBill(false);
+      if (request === billRequest.current) setLoadingBill(false);
     }
   }, [
     cartItems,
@@ -154,6 +164,11 @@ export default function CheckoutPage() {
 
     if (orderType === "takeaway" && !/^[6-9]\d{9}$/.test(pickupPhone)) {
       setOrderError("Please enter your 10-digit mobile number for pickup updates."); return;
+    }
+
+    if (!bill || loadingBill) {
+      setOrderError("Please wait for your bill to be confirmed, or retry the bill calculation.");
+      return;
     }
 
     setPlacingOrder(true);
@@ -204,7 +219,15 @@ export default function CheckoutPage() {
     }
   };
 
-  const grandTotal = bill ? bill.grandTotal : cartSubtotal;
+  const feeRules = outletForPricing.delivery_fee_rules;
+  const estimatedDeliveryFee = orderType !== "delivery" || cartSubtotal >= feeRules.free_above
+    ? 0
+    : Number(feeRules.base_fee) + Math.max(0, Math.ceil((selectedAddress?.distance_km ?? 1.5) - 3)) * Number(feeRules.per_km_above_3km);
+  const gstPercent = bill?.gstPercent ?? Number(outletForPricing.gst_percent ?? 5);
+  const tax = bill?.tax ?? Math.round(cartSubtotal * gstPercent / 100);
+  const deliveryFee = bill?.deliveryFee ?? estimatedDeliveryFee;
+  const platformFee = bill?.platformFee ?? Number(outletForPricing.platform_fee ?? 0) + Number(outletForPricing.packaging_fee ?? 0);
+  const grandTotal = bill?.grandTotal ?? cartSubtotal + tax + deliveryFee + platformFee;
   const walletBalance = user?.wallet_balance ?? 150;
 
   return (
@@ -686,26 +709,26 @@ export default function CheckoutPage() {
                   )}
 
                   <div className="flex justify-between">
-                    <span>GST ({bill?.gstPercent ?? 5}%)</span>
+                    <span>GST ({gstPercent}%)</span>
                     <span className="font-bold text-text-primary">
-                      ₹{bill?.tax ?? Math.round(cartSubtotal * 0.05)}
+                      ₹{tax}
                     </span>
                   </div>
 
                   <div className="flex justify-between">
                     <span>
                       Delivery Fee{" "}
-                      {orderType === "delivery" && cartSubtotal >= 299
-                        ? "(Free above ₹299)"
+                      {orderType === "delivery"
+                        ? `(Free from ₹${feeRules.free_above})`
                         : ""}
                     </span>
                     <span className="font-bold text-text-primary">
-                      {bill?.deliveryFee === 0 ? (
+                      {deliveryFee === 0 ? (
                         <span className="text-status-open font-extrabold">
                           FREE
                         </span>
                       ) : (
-                        `₹${bill?.deliveryFee ?? 29}`
+                        `₹${deliveryFee}`
                       )}
                     </span>
                   </div>
@@ -713,7 +736,7 @@ export default function CheckoutPage() {
                   <div className="flex justify-between">
                     <span>Platform Fee</span>
                     <span className="font-bold text-text-primary">
-                      ₹{bill?.platformFee ?? 9}
+                      ₹{platformFee}
                     </span>
                   </div>
 
@@ -729,6 +752,9 @@ export default function CheckoutPage() {
                     <span>₹{grandTotal}</span>
                   </div>
                 </div>
+
+                {!bill && <p className="text-xs text-text-secondary">Estimated total. Final bill will be confirmed before placing your order.</p>}
+                {billError && <p role="alert" className="text-xs text-status-error">{billError} <button type="button" onClick={() => void fetchServerBill()} disabled={loadingBill} className="underline font-bold">Retry</button></p>}
 
                 {/* Payment Method Selector */}
                 <div className="pt-3 border-t border-border-subtle space-y-2">

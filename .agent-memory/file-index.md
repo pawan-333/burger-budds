@@ -32,3 +32,7 @@ tests/geolocation.test.cjs · 11 GPS success/error/cancel regression cases · ve
 src/components/modals/AddressModal.tsx · mobile GPS feedback and stale zone-request cancellation · verified@2026-10-24
 
 src/components/maps/DeliveryMap.tsx · Leaflet delivery pin, tip anchor, drag/click and radius overlay · verified@2026-10-24
+
+src/app/checkout/[cartId]/page.tsx · outlet-based fees, consistent estimates, confirmed bill guard · reviewed@2026-10-24
+src/app/api/cart/price/route.ts · server pricing; wallet lookup only when redeeming · reviewed@2026-10-24
+supabase/migrations/017_set_badagaon_delivery_fees.sql · Badagaon 349/29 fee rule; data applied · reviewed@2026-10-24

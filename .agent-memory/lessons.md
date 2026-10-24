@@ -11,3 +11,5 @@
 2026-10-24 · Test regex slash escaped incorrectly inside generated JavaScript → avoid nested regex escaping or syntax-check the generated test before running it.
 
 2026-10-24 · Map marker was confused with the GPS button icon → use the screenshot target to distinguish marker appearance from button action before proposing edits.
+
+2026-10-24 · User flagged slow handling of a small fee update → change scoped outlet settings and dependent labels directly, honor no-test requests and explain any necessary total-calculation scope immediately.
