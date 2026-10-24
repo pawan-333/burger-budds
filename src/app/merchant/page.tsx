@@ -40,6 +40,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { MerchantLogin } from "@/components/merchant/MerchantLogin";
 import { PUBLIC_MERCHANT_ACCESS } from "@/lib/site-access";
 import { verifyMerchantAccess } from "@/lib/merchant-access";
+import { outletHours } from "@/lib/outlet-hours";
 
 export default function MerchantAppPage() {
   const { notifyRealtimeUpdate } = useApp();
@@ -70,6 +71,7 @@ export default function MerchantAppPage() {
 
   // Live Data State
   const [outlet, setOutlet] = useState<Outlet>(SEED_OUTLET);
+  const outletStatus = outletHours(outlet);
   const [categories, setCategories] = useState<Category[]>([]);
   const [items, setItems] = useState<MenuItem[]>([]);
   const [orders, setOrders] = useState<OrderRecord[]>([]);
@@ -79,6 +81,11 @@ export default function MerchantAppPage() {
   const pendingOrderIds = useRef(new Set<string>());
   const refreshInFlight = useRef(false);
   const orderRevision = useRef(0);
+  const controlRevision = useRef(0);
+  const controlPending = useRef(false);
+  const [savingControls, setSavingControls] = useState(false);
+  const [controlError, setControlError] = useState<string | null>(null);
+  const [controlMessage, setControlMessage] = useState("");
 
   // Audio Alarm State (Looping kitchen alarm when unaccepted 'placed' orders exist)
   const [audioUnlocked, setAudioUnlocked] = useState<boolean>(false);
@@ -147,6 +154,7 @@ export default function MerchantAppPage() {
     if (staffAccess !== "allowed" || refreshInFlight.current) return;
     refreshInFlight.current = true;
     const revision = orderRevision.current;
+    const outletRevision = controlRevision.current;
     try {
       const [menuRes, ordersRes] = await Promise.all([
         fetch(`/api/menu?outlet=${encodeURIComponent(merchantSlug)}`, { cache: "no-store" }),
@@ -154,7 +162,7 @@ export default function MerchantAppPage() {
       ]);
       if (menuRes.ok) {
         const menuData = await menuRes.json();
-        if (menuData.outlet) setOutlet(menuData.outlet);
+        if (menuData.outlet && outletRevision === controlRevision.current && !controlPending.current) setOutlet(menuData.outlet);
         if (Array.isArray(menuData.categories))
           setCategories(menuData.categories);
         if (Array.isArray(menuData.items)) setItems(menuData.items);
@@ -345,18 +353,33 @@ export default function MerchantAppPage() {
     delivery_enabled?: boolean;
     pause_minutes?: number;
   }) => {
-    const res = await fetch("/api/menu", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "update_outlet", outletSlug: merchantSlug,
-        ...patch,
-      }),
-    });
-    if (res.ok) {
+    if (controlPending.current) return;
+    controlPending.current = true;
+    controlRevision.current += 1;
+    setSavingControls(true);
+    setControlError(null);
+    setControlMessage("");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const res = await fetch("/api/menu", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({ action: "update_outlet", outletSlug: merchantSlug, ...patch }),
+      });
       const data = await res.json();
-      if (data.outlet) setOutlet(data.outlet);
+      if (!res.ok || !data.outlet) throw new Error(data.error || "Could not save store settings.");
+      setOutlet(data.outlet);
+      setControlMessage(patch.pause_minutes ? "Orders paused for " + patch.pause_minutes + " minutes." : "Store settings saved. " + outletHours(data.outlet).label);
       notifyRealtimeUpdate("menu_updated", data.outlet);
+    } catch (error) {
+      setControlError(error instanceof Error && error.name !== "AbortError" ? error.message : "Save timed out. Please retry.");
+    } finally {
+      clearTimeout(timeout);
+      controlRevision.current += 1;
+      controlPending.current = false;
+      setSavingControls(false);
     }
   };
 
@@ -497,7 +520,7 @@ export default function MerchantAppPage() {
               </div>
               <p className="text-[11px] text-text-onSecondary/85">
                 {outlet.name} • Store is{" "}
-                <strong>{outlet.is_open ? "OPEN" : "CLOSED"}</strong>
+                <strong>{outletStatus.open ? "OPEN" : "CLOSED"}</strong>
               </p>
             </div>
           </div>
@@ -658,6 +681,8 @@ export default function MerchantAppPage() {
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-6 print:hidden">
         {orderActionError && <p role="alert" className="mb-4 p-3 bg-status-errorSoft text-status-error rounded-xs">{orderActionError}</p>}
+        {controlError && <p role="alert" className="mb-4 p-3 bg-status-errorSoft text-status-error rounded-xs">{controlError}</p>}
+        {(savingControls || controlMessage) && <p role="status" className="mb-4 p-3 bg-surface-base rounded-xs">{savingControls ? "Saving store settings…" : controlMessage}</p>}
         {/* SCREEN 1: LIVE ORDERS */}
         {activeScreen === "orders" && (
           <div className="space-y-5">
@@ -1144,7 +1169,7 @@ export default function MerchantAppPage() {
 
         {/* SCREEN 3: STORE CONTROLS */}
         {activeScreen === "controls" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <fieldset disabled={savingControls} aria-busy={savingControls} className="grid grid-cols-1 md:grid-cols-2 gap-6 disabled:opacity-60">
             <section className="rounded-md bg-surface-base border border-border-subtle p-5 shadow-card space-y-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -1158,16 +1183,16 @@ export default function MerchantAppPage() {
                 <button
                   type="button"
                   onClick={() =>
-                    handleUpdateOutletControls({ is_open: !outlet.is_open })
+                    handleUpdateOutletControls({ is_open: !outletStatus.open })
                   }
                   className={`min-h-[44px] px-5 rounded-xs font-extrabold text-xs inline-flex items-center gap-2 ${
-                    outlet.is_open
+                    outletStatus.open
                       ? "bg-status-open text-text-onSecondary"
                       : "bg-status-error text-text-onSecondary"
                   }`}
                 >
                   <Power className="w-4 h-4" />
-                  <span>{outlet.is_open ? "STORE OPEN" : "STORE CLOSED"}</span>
+                  <span>{outletStatus.open ? "STORE OPEN" : "STORE CLOSED"}</span>
                 </button>
               </div>
 
@@ -1175,6 +1200,7 @@ export default function MerchantAppPage() {
                 <p className="text-xs font-extrabold uppercase text-text-secondary">
                   Quick Pause Orders (Busy Kitchen)
                 </p>
+                <p className="text-xs text-text-secondary">{outlet.pause_until && Date.parse(outlet.pause_until) > Date.now() ? `Paused until ${new Date(outlet.pause_until).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" })}` : outletStatus.label}</p>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -1261,7 +1287,7 @@ export default function MerchantAppPage() {
                 </button>
               </div>
             </section>
-          </div>
+          </fieldset>
         )}
 
         {/* SCREEN 4: BASIC REPORTS & CSV EXPORT */}

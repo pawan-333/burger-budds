@@ -28,3 +28,5 @@ Approved performance scope implemented: OrderMenuClient.tsx, server-db.ts, globa
 2026-10-23 · merchant radius label uses outlet record; commit/push requested · merchant/page.tsx and existing admin radius edits.
 
 2026-10-24 · user-approved Badagaon hours 11:00–21:30 daily; accepting orders enabled · migration015, progress.md; 5 boundary checks passed.
+
+2026-10-24 · approved merchant Pause/Resume repair · api/menu, merchant/page, outlet-controls tests; 7 controls + 9 order tests/typecheck passed; build pending.

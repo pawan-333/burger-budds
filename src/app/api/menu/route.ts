@@ -13,10 +13,14 @@ export async function PATCH(req:NextRequest) {
  const {client}=access;
  if(body.action==='update_outlet') {
  const patch:Record<string,unknown>={};
- if(typeof body.is_open==='boolean')patch.is_open=body.is_open;
+ if(typeof body.is_open==='boolean'){patch.is_open=body.is_open;patch.pause_until=null;}
  if(typeof body.delivery_enabled==='boolean')patch.delivery_enabled=body.delivery_enabled;
  if(Number.isInteger(body.prep_time_min)&&body.prep_time_min>0&&body.prep_time_min<=120)patch.prep_time_min=body.prep_time_min;
- if(Number.isInteger(body.pause_minutes)&&body.pause_minutes>=0&&body.pause_minutes<=1440)patch.pause_until=body.pause_minutes?new Date(Date.now()+body.pause_minutes*60000).toISOString():null;
+ if(body.pause_minutes!==undefined){
+ if(!Number.isInteger(body.pause_minutes)||body.pause_minutes<0||body.pause_minutes>1440)return NextResponse.json({error:'Invalid pause duration.'},{status:400});
+ patch.pause_until=body.pause_minutes?new Date(Date.now()+body.pause_minutes*60000).toISOString():null;
+ if(body.pause_minutes===0)patch.is_open=true;
+ }
  if(!Object.keys(patch).length)throw Error('Invalid update');
  const {data,error}=await client.from('outlets').update(patch).eq('id',outlet.id).select().single();if(error)throw error;
  return NextResponse.json({ok:true,outlet:data});
