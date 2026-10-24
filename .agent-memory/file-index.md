@@ -30,3 +30,5 @@ src/app/loading.tsx · shared navigation skeleton, outlet/store boundaries reuse
 src/lib/geolocation.ts · bounded GPS retry, validation, permission/HTTPS messages, abort · verified@2026-10-24
 tests/geolocation.test.cjs · 11 GPS success/error/cancel regression cases · verified@2026-10-24
 src/components/modals/AddressModal.tsx · mobile GPS feedback and stale zone-request cancellation · verified@2026-10-24
+
+src/components/maps/DeliveryMap.tsx · Leaflet delivery pin, tip anchor, drag/click and radius overlay · verified@2026-10-24

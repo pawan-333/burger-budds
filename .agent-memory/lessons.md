@@ -9,3 +9,5 @@
 2026-10-24 · Resume only cleared pause while leaving manual closure → test resume from closed and paused states, not only already-open state.
 2026-10-24 · Urgent local fix was pushed using older approval → require a fresh explicit git push request for every later push; default to localhost only.
 2026-10-24 · Test regex slash escaped incorrectly inside generated JavaScript → avoid nested regex escaping or syntax-check the generated test before running it.
+
+2026-10-24 · Map marker was confused with the GPS button icon → use the screenshot target to distinguish marker appearance from button action before proposing edits.

@@ -23,7 +23,18 @@ export default function DeliveryMap({ lat, lng, outletLat, outletLng, radiusKm, 
     L.circleMarker([outletLat, outletLng], { radius: 7 }).bindTooltip("Burger Budds outlet").addTo(instance);
     const marker = L.marker([lat, lng], {
       draggable: true,
-      icon: L.divIcon({ html: '<span style="font-size:28px;color:#4c6d3e">●</span>', className: "delivery-pin", iconSize: [28, 36], iconAnchor: [14, 28] }),
+      title: "Delivery location",
+      zIndexOffset: 1000,
+      icon: L.divIcon({
+        html: `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="54" viewBox="0 0 44 54" aria-hidden="true" focusable="false" style="filter:drop-shadow(0 2px 2px #0004)">
+          <path d="M22 3C11.5 3 3 11.4 3 21.8C3 34.8 22 51 22 51S41 34.8 41 21.8C41 11.4 32.5 3 22 3Z" fill="#f7ce0c" stroke="#4c6d3e" stroke-width="2.5" />
+          <circle cx="22" cy="21" r="7" fill="#fff" />
+        </svg>`,
+        className: "delivery-pin",
+        iconSize: [44, 54],
+        iconAnchor: [22, 51],
+        tooltipAnchor: [0, -43],
+      }),
     }).addTo(instance).bindTooltip("Delivery location");
     pin.current = marker;
     marker.on("dragend", () => { const point = marker.getLatLng(); onSelectRef.current(point.lat, point.lng); });

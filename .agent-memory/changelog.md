@@ -40,3 +40,5 @@ Approved performance scope implemented: OrderMenuClient.tsx, server-db.ts, globa
 2026-10-24 · user-confirmed Badagaon radius 6km saved · migration016, local API and real merchant screen verified; no push.
 
 2026-10-24 · mobile GPS quick fix explicitly authorized with push · geolocation.ts, AddressModal, StoreFinder, geolocation tests; 18 focused tests, typecheck/build pass; mobile browser with simulated outlet GPS opens correct store and enables deliverable pin confirmation. Localhost updated; push authorized.
+
+2026-10-24 · approved delivery dot → yellow/green pin + white center · DeliveryMap, progress/memory; typecheck/build pass; browser drag/zone recheck verified; push requested.
