@@ -46,12 +46,12 @@ export async function PATCH(
           return NextResponse.json({ order: publicOrder(fullOrder) });
         }
       }
-      const user = await getVerifiedUser();
+      const user = await getVerifiedUser(req);
       if (!user) {
         if (!guestHash || nextStatus !== "cancelled") return NextResponse.json({ error: "Order status change is not allowed." }, { status: 403 });
         return NextResponse.json({ error: "Order can only be cancelled before the restaurant accepts it, from the browser that placed it." }, { status: 400 });
       }
-      const session = (await getSupabaseServerClient())!;
+      const session = (await getSupabaseServerClient(req))!;
       const { data: visible } = await session.from("orders").select("id, outlet_id").eq("id", orderId).maybeSingle();
       if (!visible) return NextResponse.json({ error: "Order not found" }, { status: 404 });
       if (actor === "merchant") {

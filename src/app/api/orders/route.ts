@@ -29,14 +29,14 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const orderId = req.nextUrl.searchParams.get("id");
   const userId = req.nextUrl.searchParams.get("userId");
-  const session = await getSupabaseServerClient();
+  const session = await getSupabaseServerClient(req);
   if (session) {
     if (PUBLIC_MERCHANT_ACCESS && req.nextUrl.searchParams.get("merchant") === "1") {
       const { data, error } = await getSupabaseAdminClient()!.from("orders").select("*, items:order_items(*), events:order_events(*)").order("placed_at", { ascending: false });
       if (error) return NextResponse.json({ error: "Unable to load orders." }, { status: 500 });
       return NextResponse.json({ orders: (data || []).map(publicOrder) });
     }
-    const user = await getVerifiedUser();
+    const user = await getVerifiedUser(req);
     if (req.nextUrl.searchParams.get("merchant") === "1") {
       if (!user) return NextResponse.json({ error: "Please log in." }, { status: 401 });
       const slug = req.nextUrl.searchParams.get("outlet");

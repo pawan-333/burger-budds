@@ -161,10 +161,24 @@ export default function MerchantAppPage() {
     const revision = orderRevision.current;
     const outletRevision = controlRevision.current;
     try {
+      const session = await getSupabaseBrowserClient()?.auth.getSession();
+      const token = session?.data.session?.access_token;
+      if (!token || session?.error) {
+        setStaffAccess("login");
+        setOrders([]);
+        setConnected(false);
+        return;
+      }
       const [menuRes, ordersRes] = await Promise.all([
         fetch(`/api/menu?outlet=${encodeURIComponent(merchantSlug)}`, { cache: "no-store" }),
-        fetch(`/api/orders?merchant=1&outlet=${encodeURIComponent(merchantSlug)}`, { cache: "no-store" }),
+        fetch(`/api/orders?merchant=1&outlet=${encodeURIComponent(merchantSlug)}`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
       ]);
+      if (ordersRes.status === 401) {
+        setStaffAccess("login");
+        setOrders([]);
+        setConnected(false);
+        return;
+      }
       if (menuRes.ok) {
         const menuData = await menuRes.json();
         if (menuData.outlet && outletRevision === controlRevision.current && !controlPending.current) setOutlet(menuData.outlet);
@@ -176,7 +190,7 @@ export default function MerchantAppPage() {
         const ordersData = await ordersRes.json();
         if (Array.isArray(ordersData.orders) && revision === orderRevision.current && pendingOrderIds.current.size === 0) setOrders(ordersData.orders);
       }
-      setConnected(true);
+      setConnected(menuRes.ok && ordersRes.ok);
     } catch {
       setConnected(false);
     } finally {
@@ -185,6 +199,7 @@ export default function MerchantAppPage() {
   }, [staffAccess, merchantSlug]);
 
   useEffect(() => {
+    if (staffAccess !== "allowed") return;
     fetchMerchantData();
 
     let channel: BroadcastChannel | null = null;
@@ -214,7 +229,7 @@ export default function MerchantAppPage() {
       if (sub && sb) sb.removeChannel(sub);
       clearInterval(pollInterval);
     };
-  }, [fetchMerchantData]);
+  }, [fetchMerchantData, staffAccess]);
 
   const newOrders = useMemo(
     () => orders.filter((o) => o.status === "placed"),
@@ -262,9 +277,16 @@ export default function MerchantAppPage() {
     setPendingOrders(previous => ({ ...previous, [orderId]: true }));
     setOrderActionError(null);
     try {
+      const session = await getSupabaseBrowserClient()?.auth.getSession();
+      const token = session?.data.session?.access_token;
+      if (!token || session?.error) {
+        setStaffAccess("login");
+        setOrders([]);
+        return false;
+      }
       const res = await fetch(`/api/orders/${orderId}/status`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           status,
           actor: "merchant",

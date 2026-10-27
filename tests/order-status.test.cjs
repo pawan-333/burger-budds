@@ -42,10 +42,12 @@ test('merchant UI accept action reaches public merchant RPC without authenticati
   const source = fs.readFileSync('src/app/merchant/page.tsx', 'utf8');
   const handler = source.slice(source.indexOf('const handleOrderStatusChange ='), source.indexOf('const handleToggleItemStock ='));
   const scope = {
+    getSupabaseBrowserClient: () => ({ auth: { getSession: async () => ({ data: { session: { access_token: 'merchant-token' } } }) } }),
     exports: {}, staffRole: 'owner', setOrderActionError: () => {}, setRejectingOrderId: () => {},
     fetchMerchantData: async () => {}, notifyRealtimeUpdate: () => {},
     pendingOrderIds: { current: new Set() }, orderRevision: { current: 0 }, setPendingOrders: () => {}, setOrders: () => {},
     fetch: async (_, options) => {
+      assert.equal(options.headers.Authorization, 'Bearer merchant-token');
       const result = await route.patch(JSON.parse(options.body));
       return { ok: result.status === 200, json: async () => result.data };
     },
@@ -180,6 +182,7 @@ test('merchant status changes respond immediately and do not wait for a full das
   let orders = [{ id: 'order-a', status: 'placed' }];
   const response = new Promise(resolve => { finish = resolve; });
   const scope = {
+    getSupabaseBrowserClient: () => ({ auth: { getSession: async () => ({ data: { session: { access_token: 'merchant-token' } } }) } }),
     exports: {}, pendingOrderIds: { current: new Set() }, orderRevision: { current: 0 },
     setPendingOrders: update => { pending = update(pending); }, setOrders: update => { orders = update(orders); },
     setOrderActionError: () => {}, setRejectingOrderId: () => {}, notifyRealtimeUpdate: () => {},
@@ -205,6 +208,7 @@ test('failed merchant action clears pending feedback and preserves the saved ord
   let errorMessage;
   let updates = 0;
   const scope = {
+    getSupabaseBrowserClient: () => ({ auth: { getSession: async () => ({ data: { session: { access_token: 'merchant-token' } } }) } }),
     exports: {}, pendingOrderIds: { current: new Set() }, orderRevision: { current: 0 },
     setPendingOrders: update => { pending = update(pending); }, setOrders: () => { updates++; },
     setOrderActionError: message => { errorMessage = message; }, setRejectingOrderId: () => {}, notifyRealtimeUpdate: () => {},
@@ -216,4 +220,20 @@ test('failed merchant action clears pending feedback and preserves the saved ord
   assert.equal(errorMessage, 'Access denied');
   assert.equal(pending['order-a'], undefined);
   assert.equal(scope.pendingOrderIds.current.size, 0);
+});
+
+test('unauthorized merchant polling returns to login and clears stale orders', async () => {
+  const source = fs.readFileSync('src/app/merchant/page.tsx', 'utf8');
+  const start = source.indexOf('const fetchMerchantData = useCallback(') + 'const fetchMerchantData = useCallback('.length;
+  const end = source.indexOf(', [staffAccess, merchantSlug]);', start);
+  let access, orders, connected;
+  const scope = { exports: {}, staffAccess: 'allowed', merchantSlug: 'store', refreshInFlight: { current: false }, orderRevision: { current: 0 }, controlRevision: { current: 0 },
+    getSupabaseBrowserClient: () => ({ auth: { getSession: async () => ({ data: { session: { access_token: 'valid-token' } } }) } }),
+    setStaffAccess: value => { access = value; }, setOrders: value => { orders = value; }, setConnected: value => { connected = value; },
+    fetch: async (url, options) => { if (url.startsWith('/api/orders')) assert.equal(options.headers.Authorization, 'Bearer valid-token'); return { status: 401, ok: false }; },
+  };
+  vm.runInNewContext(ts.transpileModule('exports.poll = ' + source.slice(start, end), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, scope);
+  await scope.exports.poll();
+  assert.equal(access, 'login'); assert.equal(orders.length, 0); assert.equal(connected, false);
+  assert.equal(scope.refreshInFlight.current, false);
 });
