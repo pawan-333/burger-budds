@@ -20,6 +20,7 @@ import {
 } from "@/types/database";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { verifyEmailOtp } from "@/lib/supabase/email-auth";
+import type { User } from "@supabase/supabase-js";
 
 import { SEED_OUTLET } from "@/lib/seed-data";
 interface AddToCartInput {
@@ -175,8 +176,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const sb = getSupabaseBrowserClient();
     if (!sb) return;
     let active = true;
-    const syncUser = async () => {
-      const { data } = await sb.auth.getUser();
+    const syncUser = async (eventUser?: User | null) => {
+      const data = eventUser === undefined ? (await sb.auth.getUser()).data : { user: eventUser };
       if (!active) return;
       if (!data.user) { setUser(null); setSavedAddresses((previous) => previous.filter((address) => address.user_id === "guest-user")); setSelectedAddress((previous) => previous?.user_id === "guest-user" ? previous : null); return; }
       const { data: profile } = await sb.from("profiles").select("*").eq("id", data.user.id).maybeSingle();
@@ -195,7 +196,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     };
     void syncUser();
-    const { data: subscription } = sb.auth.onAuthStateChange(() => { setTimeout(() => void syncUser(), 0); });
+    const { data: subscription } = sb.auth.onAuthStateChange((event, session) => {
+      if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") return;
+      setTimeout(() => { if (active) void syncUser(session?.user ?? null); }, 0);
+    });
     return () => { active = false; subscription.subscription.unsubscribe(); };
   }, []);
 

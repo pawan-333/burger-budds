@@ -164,7 +164,10 @@ export default function MerchantAppPage() {
       const session = await getSupabaseBrowserClient()?.auth.getSession();
       const token = session?.data.session?.access_token;
       if (!token || session?.error) {
-        setStaffAccess("login");
+        if (session?.error?.status === 429) {
+          setAccessMessage("Session refresh is temporarily rate limited. Wait a minute, then retry access.");
+          setStaffAccess("denied");
+        } else setStaffAccess("login");
         setOrders([]);
         setConnected(false);
         return;
@@ -280,7 +283,10 @@ export default function MerchantAppPage() {
       const session = await getSupabaseBrowserClient()?.auth.getSession();
       const token = session?.data.session?.access_token;
       if (!token || session?.error) {
-        setStaffAccess("login");
+        if (session?.error?.status === 429) {
+          setAccessMessage("Session refresh is temporarily rate limited. Wait a minute, then retry access.");
+          setStaffAccess("denied");
+        } else setStaffAccess("login");
         setOrders([]);
         return false;
       }

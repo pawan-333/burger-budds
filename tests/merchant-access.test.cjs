@@ -38,3 +38,9 @@ test('network login errors are distinguished from invalid credentials', () => {
   assert.match(scope.exports.merchantLoginError({ message: 'Failed to fetch' }), /connect/);
   assert.match(scope.exports.merchantLoginError({ code: 'invalid_credentials' }), /account must be created/);
 });
+
+test('rate-limited session verification shows recovery instructions without membership queries', async () => {
+  const result = await scope.exports.verifyMerchantAccess({ auth: { getUser: async () => ({ data: { user: null }, error: { status: 429 } }) }, from: () => { throw Error('must not query'); } }, null);
+  assert.equal(result.status, 'denied');
+  assert.match(result.message, /rate limited/);
+});

@@ -1,5 +1,6 @@
 import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createRefreshFetch } from "./refresh-fetch";
 
 export function isSupabaseConfigured(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -18,9 +19,12 @@ let browserClient: SupabaseClient | null = null;
 export function getSupabaseBrowserClient(): SupabaseClient | null {
   if (!isSupabaseConfigured()) return null;
   if (!browserClient) {
+    let storage: Storage | undefined;
+    try { if (typeof window !== "undefined") storage = window.localStorage; } catch { /* Private browsing may block storage. */ }
     browserClient = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { global: { fetch: createRefreshFetch((input, init) => fetch(input, init), storage) } }
     );
   }
   return browserClient;

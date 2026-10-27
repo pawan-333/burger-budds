@@ -16,6 +16,7 @@ export function merchantLoginError(error: { code?: string; status?: number; mess
 export async function verifyMerchantAccess(client: SupabaseClient, requestedSlug: string | null): Promise<AccessResult> {
   try {
     const { data, error } = await client.auth.getUser();
+    if (error?.status === 429) return { status: "denied", message: "Session refresh is temporarily rate limited. Close extra merchant tabs, wait a minute, then retry access. If it persists, wait longer before retrying." };
     if (error && /fetch|network/i.test(error.message)) return { status: "denied", message: "Cannot connect to the login service. Please retry." };
     if (!data.user) return { status: "login" };
     const { data: admin, error: adminError } = await client.from("super_admins").select("user_id").eq("user_id", data.user.id).maybeSingle();
