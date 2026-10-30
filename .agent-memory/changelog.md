@@ -74,3 +74,4 @@ Approved performance scope implemented: OrderMenuClient.tsx, server-db.ts, globa
 2026-10-30 · approved rider dashboard local implementation complete · exact inventory docs/rider-dashboard.md; root+rider tests/typecheck/web build pass, synthetic mobile flows and real localhost401/no-store verified. Migration021 unapplied; no provisioning/live order/DB write/deploy/push. AGENTS rider-path patch proposed in docs.
 
 2026-10-30 · approved rider DB/PIN continuation · migration021 applied after temporary-table probes; three inactive Badagaon mappings verified; mobile/password identity and protected admin PIN activation added. Rider tests pass; final push checks pending. Owner private PIN setup remains.
+2026-10-30 · commit and push approved · committed 739d290 (Cashfree payment integration, desktop Edge launcher, ECC git hooks, rider updates) and pushed to origin/codex/rider-dashboard; 82 test suite, typecheck and next build passed cleanly.
