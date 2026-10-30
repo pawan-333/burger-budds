@@ -1,0 +1,36 @@
+{
+  "name": "burger-budds-merchant",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Burger Budds Merchant Windows desktop app",
+  "author": "Burger Budds",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win portable --x64"
+  },
+  "devDependencies": {
+    "electron": "45.0.0",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "in.burgerbudds.merchant",
+    "productName": "Burger Budds Merchant",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.cjs",
+      "offline.html",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "signAndEditExecutable": false,
+      "artifactName": "Burger-Budds-Merchant-${version}-${arch}.${ext}"
+    }
+  }
+}

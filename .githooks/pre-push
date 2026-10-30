@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ecc_hooks_root="$(git config --local --get ecc.hooksRoot || true)"
+if [[ -z "$ecc_hooks_root" || ! -f "$ecc_hooks_root/pre-push" ]]; then
+  printf '[Burger Budds] ECC pre-push hook is missing; configure ecc.hooksRoot.\n' >&2
+  exit 1
+fi
+
+# Missing tools/scripts must not turn verification into a successful no-op.
+for tool in node npm; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    printf '[Burger Budds] Required tool missing: %s\n' "$tool" >&2
+    exit 1
+  fi
+done
+node -e 'const fs = require("fs"); const p = JSON.parse(fs.readFileSync("package.json", "utf8")); for (const name of ["typecheck", "test", "build"]) { if (!p.scripts || !p.scripts[name]) { console.error("[Burger Budds] Required npm script missing: " + name); process.exit(1); } }'
+
+# Repository-local approval; this does not enable checks in other projects.
+export ECC_PREPUSH_RUN_CHECKS=1
+exec bash "$ecc_hooks_root/pre-push" "$@"

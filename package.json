@@ -6,10 +6,14 @@
     "postcss": "^8.5.29"
   },
   "scripts": {
+    "desktop:build:edge": "node desktop/build-edge.cjs",
+    "desktop:install": "npm --prefix desktop install --package-lock=false",
+    "desktop:start": "npm --prefix desktop start",
+    "desktop:build": "npm --prefix desktop run build",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test tests/pricing.test.cjs tests/order-status.test.cjs tests/admin-access.test.cjs tests/merchant-access.test.cjs tests/rider.test.cjs",
+    "test": "node --test tests/pricing.test.cjs tests/order-status.test.cjs tests/admin-access.test.cjs tests/merchant-access.test.cjs tests/order-placement.test.cjs tests/cashfree.test.cjs tests/rider.test.cjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

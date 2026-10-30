@@ -1,7 +1,6 @@
 node_modules/
 .next/
-.next-dev/
-.next-validation/
+.next*/
 out/
 .data/
 .vercel/
@@ -10,3 +9,4 @@ out/
 *.tsbuildinfo
 *.log
 .DS_Store
+supabase/.temp/

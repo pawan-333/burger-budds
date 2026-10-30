@@ -25,6 +25,7 @@ import { DEFAULT_OUTLET_SLUG, SEED_OUTLET } from "@/lib/seed-data";
 import { useApp } from "@/context/AppContext";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getOrderRider } from "@/lib/order-rider";
+import { CashfreePayment } from "@/components/payments/CashfreePayment";
 
 const TIMELINE_STEPS: Array<{
   status: OrderStatus;
@@ -208,6 +209,7 @@ export default function OrderTrackingPage() {
           </div>
         ) : (
           <>
+            {order.payment_method === "cashfree" && <CashfreePayment orderId={order.id} mode={order.payment_environment || null} paid={order.payment_status === "paid"} cancelled={order.status === "cancelled" || order.status === "rejected"} onVerified={fetchOrder} />}
             {/* Top Status Hero Card */}
             <section className="rounded-md bg-surface-base border border-border-subtle p-5 shadow-card space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border-subtle pb-4">
@@ -231,6 +233,8 @@ export default function OrderTrackingPage() {
                       ? "Order Cancelled"
                       : order.status === "delivered"
                       ? "Order Delivered!"
+                      : order.payment_method === "cashfree" && order.payment_status !== "paid"
+                      ? "Awaiting payment verification"
                       : `Estimated Arrival in ~${order.prep_time_min + 10} Mins`}
                   </h1>
                   <p className="text-xs font-medium text-text-secondary">
@@ -278,7 +282,7 @@ export default function OrderTrackingPage() {
               )}
 
               {/* 6-Step Live Status Timeline */}
-              {order.status !== "rejected" && order.status !== "cancelled" && (
+              {order.status !== "rejected" && order.status !== "cancelled" && (order.payment_method !== "cashfree" || order.payment_status === "paid") && (
                 <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 pt-2">
                   {TIMELINE_STEPS.map((step, idx) => {
                     const Icon = step.icon;

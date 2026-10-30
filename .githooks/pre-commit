@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Use the locally approved ECC installation; fail if it has been removed.
+ecc_hooks_root="$(git config --local --get ecc.hooksRoot || true)"
+if [[ -z "$ecc_hooks_root" || ! -f "$ecc_hooks_root/pre-commit" ]]; then
+  printf '[Burger Budds] ECC pre-commit hook is missing; configure ecc.hooksRoot.\n' >&2
+  exit 1
+fi
+
+# ECC prints matching source lines. Redact values while retaining its exit status.
+bash "$ecc_hooks_root/pre-commit" "$@" 2>&1 |
+  sed -E 's/^[0-9]+:.*/[redacted matching line]/' >&2

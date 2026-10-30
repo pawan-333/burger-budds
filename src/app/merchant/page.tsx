@@ -852,7 +852,7 @@ export default function MerchantAppPage() {
                             >
                               {ord.payment_method === "cod"
                                 ? `COD ₹${ord.grand_total}`
-                                : `PAID ₹${ord.grand_total}`}
+                                : `${ord.payment_method === "cashfree" && ord.payment_environment !== "production" ? "TEST " : ""}${ord.payment_status === "paid" ? "PAID" : "PAYMENT PENDING"} ₹${ord.grand_total}`}
                             </span>
                             <p className="text-[11px] text-text-muted mt-1">
                               {new Date(ord.placed_at).toLocaleTimeString([], {

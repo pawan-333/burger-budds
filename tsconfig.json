@@ -31,10 +31,13 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    ".next-bugfix-check/types/**/*.ts",
+    ".next-dev/types/**/*.ts",
+    ".next-validation/gps-check/types/**/*.ts",
     ".next-validation/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-dev/types/**/*.ts"
+    ".next-validation/pin-check/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

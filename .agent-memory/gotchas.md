@@ -33,3 +33,13 @@
 - Deployed coin_reservations table is missing (PGRST205, read-only confirmed 2026-10-24). Both quote and order routes skip wallet lookup when coins are off; wallet redemption remains blocked until its schema is deployed.
 
 - transition_order/transition_public_order use rejection_reason as the generic status-event note too; manual rider snapshot uses rider-handover JSON there without modifying reject_reason on handover. Preserve that note when changing RPCs.
+- Cashfree018/019 applied to approved existing DB2026-10-27; permissions/guard verified. Hosting/secrets/provider checkout pending; refunds and abandoned orders need reconciliation. No migration-history table: do not rerun019 or push all migrations.
+- Cashfree test provisioning blocked2026-10-27: branch requiresPro; account already has2 active free projects. Do not pause/delete any project or upgrade billing without explicit scope approval.
+- Verified live Burger Budds schema2026-10-27 differs from authored migration013: create_order_legacy/coin_reservations/coupon_redemptions absent. Cashfree019 must keep optional coupon cleanup guarded; do not auto-apply unrelated migrations.
+- VercelCLI api --input non-secret env writes400InvalidJSON twice2026-10-27; no settings saved. User saving5 Cashfree vars in Production UI. Read env names only; source+020 ready, deployment still pending.
+- UI-only preview7dufvk6fy is Ready but Vercel-auth protected, no Supabase/Cashfree credentials and no payments. Do not label sandboxcheckout active. Prod-secret reuse/copy needs explicit approval: prior automatic reviews rejected it.
+Refresh429 follow-up2026-10-27: browser singleton shares timestamp cooldown across same-origin tabs; no cross-origin/server cooldown. Live source of429 unconfirmed. New refresh-fetch/server-session tests require explicit node --test invocation.
+- Production UPI enabled2026-10-27 on dpl_Ad2j7Hr5dM6KqZGkaK2y2YvgDzdv; actual settled transaction/domainwhitelist/callback delivery not tested. Owner sharedlive secret inchat: rotate via Cashfree + update VercelProduction securely; never reproduce values.
+- Rider dashboard2026-10-30: migration021/account provisioning still pending. Rider completion intentionally leaves COD payment_status unchanged; legacy merchant completion may mark COD paid. Do not infer payment collection from rider-delivered status.
+
+2026-10-30 · migration021 is applied and immutable; phone Auth disabled. New rider provisioning must match riderLoginIdentity email plus confirmed phone; inactive mapping until owner PIN setup.

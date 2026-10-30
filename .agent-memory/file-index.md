@@ -43,3 +43,25 @@ tests/order-placement.test.cjs · COD/coins dependency, fee boundaries, quote pa
 src/lib/order-rider.ts · validates rider contact; encodes/reads atomic handover event notes · verified@2026-10-24
 src/app/api/orders/[id]/status/route.ts · validates manual rider details and passes transaction note · verified@2026-10-24
 src/app/track/[orderId]/page.tsx · reads assigned rider contact for customer call link · verified@2026-10-24
+desktop/main.cjs · sandboxed hosted merchant desktop, origin guard and recovery · verified@2026-10-27
+desktop/MerchantLauncher.cs + build-edge.cjs · Edge app launcher and Windows C# build · verified@2026-10-27
+desktop/merchant.ico · 6-resolution existing brand logo; build-edge embeds via win32icon · verified@2026-10-27
+src/lib/cashfree*.ts + api/payments/cashfree · sandbox checkout/HMAC/owned reconciliation · verified@2026-10-27
+docs/cashfree-sandbox.md · exact change list, staged setup, tests and limits · verified@2026-10-27
+docs/cashfree-live.md · production UPI scope/state, secure env setup, target and validation · verified@2026-10-27
+src/lib/supabase/refresh-fetch.ts · refresh dedupe, shared429 cooldown, no persisted tokens · verified@2026-10-27
+.githooks/pre-commit · ECC staged secret scan; redacts matches; local ecc.hooksRoot · verified@2026-10-30
+.githooks/pre-push · requires and enables typecheck/test/build via ECC; stops on failure · verified@2026-10-30
+.githooks/.gitattributes · LF endings for Windows Git hook execution · verified@2026-10-30
+AGENTS.md · Burger Budds map, workflow gates, safety and verification rules; ECC hooks · verified@2026-10-30
+src/app/rider/page.tsx · mobile rider login, assignments, delivery confirmation and history · verified@2026-10-30
+src/lib/rider-access.ts · verified account/outlet scope, minimal DTOs, private errors · verified@2026-10-30
+src/app/api/rider/ · private order list and bearer-auth completion via RPC · verified@2026-10-30
+src/app/api/riders/route.ts · merchant outlet-authorized registered rider options · verified@2026-10-30
+src/components/merchant/RegisteredRiderPicker.tsx · scoped handover selection; manual fallback · verified@2026-10-30
+supabase/migrations/021_rider_dashboard.sql · account mapping + atomic RPCs; UNAPPLIED · reviewed@2026-10-30
+tests/rider.test.cjs · mocked rider/API isolation, errors, payload and handover regression · verified@2026-10-30
+docs/rider-dashboard.md · exact files, activation, checks/limits, rollback, AGENTS proposal · verified@2026-10-30
+src/lib/rider-login.ts · normalized mobile to private Auth identity · verified@e4b8724
+src/app/api/admin/riders/route.ts · super-admin PIN setup and activation · verified@e4b8724
+src/app/admin/riders/page.tsx · saved rider private PIN form · verified@e4b8724

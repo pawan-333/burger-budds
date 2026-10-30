@@ -1,0 +1,9 @@
+/.agent-memory/
+/.data/
+/desktop/
+/.next*/
+/node_modules/
+.env*
+/supabase/
+/tests/
+*.log

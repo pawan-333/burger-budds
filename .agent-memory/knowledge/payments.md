@@ -1,0 +1,13 @@
+# Cashfree sandbox · verified 2026-10-27
+- Fact: create gateway order on server; send payment_session_id to hosted checkout; whitelist test domain.
+- Fact: raw callback body + x-webhook-timestamp signed with HMAC-SHA256; verify before parsing/trusting.
+- Source: https://www.cashfree.com/docs/payments/online/web/redirect · 2026-10-27
+- Source: https://www.cashfree.com/docs/payments/online/webhooks/signature-verification · 2026-10-27
+- Decision: sandbox only; main burgerbudds.in domain blocked to prevent fake payments fulfilling real orders.
+- Implementation: stored provider order + INR amount matched to successful payment before service-only atomic confirmation.
+- Validation: 54 mocked/unit tests, typecheck, web build, disabled/invalid local API checks pass.
+- Applied018/019 to existing Burger Budds DB2026-10-27 after explicit approval; RLS/role permissions/temporary guard probe pass; no real orders/payment records. Concurrency and real Cashfree sandbox checkout unverified.
+- Operations: refund_required flags late-paid cancelled orders; automatic refunds and scheduled abandoned-order reconciliation absent.
+- Setup: docs/cashfree-sandbox.md. Credentials stay in server secret settings; none stored here.
+- Setup fact2026-10-27: branch-create402(Pro-only), new free test project refused(active-project quota2). No resource created.
+- Production active2026-10-27:020 applied; live API keys verified read-only and encrypted in Vercel Production; enableflagtrue; dpl_Ad2j7Hr5dM6KqZGkaK2y2YvgDzdv onwww.burgerbudds.in returnsenabledtrue/modeproduction. 60suite+17targeted/build pass; real transaction/domain-whitelist/callback delivery unverified. No secret values stored here.

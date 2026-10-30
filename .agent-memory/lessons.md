@@ -15,3 +15,13 @@
 2026-10-24 · User flagged slow handling of a small fee update → change scoped outlet settings and dependent labels directly, honor no-test requests and explain any necessary total-calculation scope immediately.
 
 2026-10-24 · Optional wallet dependency was skipped in quote but missed in order POST → trace and regression-test both quote and submission when fixing optional payment/loyalty dependencies.
+2026-10-27 · latest Electron requires newer Node than system Node20 → check package engines and use bundled Node24 before desktop installs/builds.
+2026-10-27 · ForEach-Object -Parallel rejects -ErrorAction → set ErrorActionPreference in parent and parallel block; fail before assembling missing chunks.
+2026-10-27 · PowerShell script execution disabled on build PC → use Node build helper to invoke csc; do not alter system execution policy.
+2026-10-27 · first EXE omitted brand icon → embed existing multi-resolution ICO and inspect icon extracted from built EXE.
+2026-10-27 · .vercelignore supabase/ excluded src/lib/supabase and broke cloud build → anchor root-only exclusions (/supabase/) and verify cloud build before reporting deployment ready.
+2026-10-27 · async session lookup added without updating handler test fixtures caused two test failures → mock session lookup in every extracted-handler test.
+2026-10-30 · CueTill AGENTS belonged to another project → verify project identity against package.json and memory before applying paths.
+2026-10-30 · Elevated hook test reused sandbox-owned temp repo and Git rejected ownership → create fixtures under the execution user; never broaden safe.directory.
+2026-10-30 · rg received a literal wildcard filename on Windows → use rg -g filters or resolve the exact filename first.
+2026-10-30 · new rider handlers assumed getSupabaseAdminClient was non-null → guard missing configuration before queries/RPCs and test503 behavior.
