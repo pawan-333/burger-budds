@@ -7,6 +7,7 @@ import { getSupabaseServerClient, getVerifiedUser } from "@/lib/supabase/server"
 import { getGuestOrderHash, publicOrder } from "@/lib/guest-session";
 import { PUBLIC_MERCHANT_ACCESS } from "@/lib/site-access";
 import { parseRiderDetails, riderHandoverNote } from "@/lib/order-rider";
+import { isRiderUuid, riderJson, riderRpcError } from "@/lib/rider-access";
 
 export async function PATCH(
   req: NextRequest,
@@ -19,6 +20,22 @@ export async function PATCH(
     const actor: string = body.actor || "merchant";
     const prepTimeMin: number | undefined = body.prepTimeMin;
     const rejectReason: string | undefined = body.rejectReason;
+    if (body.riderId !== undefined) {
+      if (actor !== "merchant" || nextStatus !== "out_for_delivery" || !isRiderUuid(body.riderId) || !isRiderUuid(orderId)) {
+        return riderJson({ error: "Invalid rider assignment." }, 400);
+      }
+      // Registered assignments never use the legacy public-merchant branch.
+      if (!/^Bearer [^\s]+$/i.test(req.headers.get("authorization") || "")) return riderJson({ error: "Store sign-in required." }, 401);
+      const user = await getVerifiedUser(req);
+      if (!user) return riderJson({ error: "Store sign-in required." }, 401);
+      const riderDb = getSupabaseAdminClient();
+      if (!riderDb) return riderJson({ error: "Rider service is not configured." }, 503);
+      const { data, error } = await riderDb.rpc("assign_order_rider", {
+        target_order_id: orderId, acting_user: user.id, target_rider_id: body.riderId,
+      });
+      if (error) return riderRpcError(error);
+      return riderJson({ order: publicOrder(data) });
+    }
     const handingOver = actor === "merchant" && nextStatus === "out_for_delivery";
     const rider = handingOver ? parseRiderDetails(body.riderName, body.riderPhone) : null;
     if (handingOver && !rider) return NextResponse.json({ error: "Enter the rider's name and a valid 10-digit mobile number." }, { status: 400 });

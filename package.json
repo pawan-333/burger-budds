@@ -9,7 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test tests/pricing.test.cjs tests/order-status.test.cjs tests/admin-access.test.cjs tests/merchant-access.test.cjs",
+    "test": "node --test tests/pricing.test.cjs tests/order-status.test.cjs tests/admin-access.test.cjs tests/merchant-access.test.cjs tests/rider.test.cjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

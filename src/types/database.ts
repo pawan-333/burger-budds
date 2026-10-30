@@ -260,3 +260,28 @@ export interface OrderRecord {
   items: OrderItemRecord[];
   events: OrderEventRecord[];
 }
+
+export interface RegisteredRider {
+  id: string;
+  name: string;
+  phone: string;
+}
+
+export interface RiderDelivery {
+  id: string;
+  order_no: string;
+  customer_name: string;
+  customer_phone: string;
+  address: Pick<Address, "house" | "landmark" | "locality" | "city" | "lat" | "lng"> | null;
+  instructions: string;
+  cod_due: number;
+  payment_label: string;
+  items: { name: string; qty: number; variant: string | null }[];
+}
+
+export interface RiderDashboardData {
+  rider: { name: string; outlet_name: string };
+  active: RiderDelivery[];
+  active_limit_reached: boolean;
+  history: { id: string; order_no: string; delivered_at: string }[];
+}

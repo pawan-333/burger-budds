@@ -119,7 +119,7 @@ test('handover form keeps inputs on save failure and closes only after success',
   const handler = source.slice(source.indexOf('const handleRiderHandover ='), source.indexOf('const handleToggleItemStock ='));
   for (const saved of [false, true]) {
     const calls = [], closed = [];
-    const scope = { exports: {}, handoverOrderId: 'test-order', riderName: 'Test Rider', riderPhone: '9000000000', parseRiderDetails, setRiderError: () => {}, setRiderName: () => {}, setRiderPhone: () => {}, setHandoverOrderId: id => closed.push(id), handleOrderStatusChange: async (...args) => { calls.push(args); return saved; } };
+    const scope = { exports: {}, handoverOrderId: 'test-order', registeredRiderId: '', riderName: 'Test Rider', riderPhone: '9000000000', parseRiderDetails, setRiderError: () => {}, setRiderName: () => {}, setRiderPhone: () => {}, setHandoverOrderId: id => closed.push(id), handleOrderStatusChange: async (...args) => { calls.push(args); return saved; } };
     vm.runInNewContext(ts.transpileModule(handler + '\nexports.submit = handleRiderHandover;', { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, scope);
     await scope.exports.submit({ preventDefault() {} });
     assert.equal(calls[0][1], 'out_for_delivery');
