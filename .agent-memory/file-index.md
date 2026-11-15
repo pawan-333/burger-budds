@@ -69,7 +69,7 @@ src/lib/payment-collection.ts · collection labels; cash declaration vs verified
 src/app/api/rider/orders/[id]/payment/route.ts · assigned rider Cashfree QR and payment reconciliation · verified@2026-11-15
 supabase/migrations/022_delivery_collection.sql · APPLIED collection RPCs/guards; immutable · verified@2026-11-02
 docs/delivery-collection.md · exact inventory, sandbox setup, DB gates and checks · verified@2026-11-02
-supabase/migrations/023_rider_upi_auto_delivery.sql · pending atomic verified-rider-UPI delivery RPC update · verified@2026-11-15
+supabase/migrations/023_rider_upi_auto_delivery.sql · APPLIED atomic verified-rider-UPI auto-delivery RPC · verified@2026-11-15
 tests/delivery-collection-preflight.sql · read-only live schema snapshot · verified@2026-11-02
 tests/delivery-collection-postflight.sql · read-only022 grants/RLS/guard checks · verified@2026-11-02
 tests/delivery-collection-db.test.sql · synthetic pg_temp collection regressions · verified@2026-11-02
