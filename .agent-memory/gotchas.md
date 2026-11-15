@@ -40,6 +40,7 @@
 - UI-only preview7dufvk6fy is Ready but Vercel-auth protected, no Supabase/Cashfree credentials and no payments. Do not label sandboxcheckout active. Prod-secret reuse/copy needs explicit approval: prior automatic reviews rejected it.
 Refresh429 follow-up2026-10-27: browser singleton shares timestamp cooldown across same-origin tabs; no cross-origin/server cooldown. Live source of429 unconfirmed. New refresh-fetch/server-session tests require explicit node --test invocation.
 - Production UPI enabled2026-10-27 on dpl_Ad2j7Hr5dM6KqZGkaK2y2YvgDzdv; actual settled transaction/domainwhitelist/callback delivery not tested. Owner sharedlive secret inchat: rotate via Cashfree + update VercelProduction securely; never reproduce values.
-- Rider dashboard2026-10-30: migration021/account provisioning still pending. Rider completion intentionally leaves COD payment_status unchanged; legacy merchant completion may mark COD paid. Do not infer payment collection from rider-delivered status.
+- 2026-11-02 · Rider migrations021/022 applied. Assigned COD delivery needs explicit cash declaration or verified UPI. Old hosted completion clients fail safely until matching code deploy; no cash settlement is inferred.
 
 2026-10-30 · migration021 is applied and immutable; phone Auth disabled. New rider provisioning must match riderLoginIdentity email plus confirmed phone; inactive mapping until owner PIN setup.
+- 2026-11-02 · Local3000 LIVE UPI now ready after explicit approval; provider credential GET404 verified. Migration022 applied; hosted collection code deploy/real checkout/domain test pending. No credentials stored in memory.

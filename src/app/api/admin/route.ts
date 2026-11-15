@@ -14,9 +14,11 @@ async function adminClient() {
 export async function GET() {
   const client = await adminClient();
   if (!client) return NextResponse.json({ error: "Super admin access required." }, { status: 403 });
-  const [stores, staff] = await Promise.all([
+  const [stores, staff, collections] = await Promise.all([
     client.from("outlets").select("*").order("name"),
     client.from("staff").select("id, user_id, outlet_id, role"),
+    client.from("orders").select("id,order_no,outlet_id,grand_total,payment_method,payment_status,payment_environment,collection_method,collected_at,collected_by,collection_reference,cashfree_payments(refund_required),rider:riders!orders_rider_id_fkey(name)")
+      .eq("payment_status", "paid").order("placed_at", { ascending: false }).limit(50),
   ]);
   if (stores.error || staff.error) return NextResponse.json({ error: "Unable to load accounts." }, { status: 500 });
   const merchants = [];
@@ -24,7 +26,7 @@ export async function GET() {
     const { data } = await client.auth.admin.getUserById(member.user_id);
     merchants.push({ ...member, email: data.user?.email || "Unknown account" });
   }
-  return NextResponse.json({ stores: stores.data, merchants });
+  return NextResponse.json({ stores: stores.data, merchants, collections: collections.error ? [] : collections.data, collectionsUnavailable: Boolean(collections.error) }, { headers: { "Cache-Control": "private, no-store" } });
 }
 export async function POST(req: NextRequest) {
   const client = await adminClient();

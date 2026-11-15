@@ -36,7 +36,7 @@ const delivery = {
   special_instructions: 'Ring once', grand_total: '149.50', payment_method: 'cod', payment_status: 'pending',
   guest_session_hash: 'private-cookie-hash', items: [{ item_name: 'Test Burger', qty: 2, variant: null, unit_price: 500 }],
 };
-function helper(db) { return load('src/lib/rider-access.ts', { 'next/server': responseModule, '@/lib/server-db': { getSupabaseAdminClient: () => db } }); }
+function helper(db) { return load('src/lib/rider-access.ts', { 'next/server': responseModule, '@/lib/server-db': { getSupabaseAdminClient: () => db }, '@/lib/payment-collection': load('src/lib/payment-collection.ts', {}) }); }
 
 test('rider dashboard scopes active/history to verified rider and outlet, with bounded results', async () => {
   const db = database(call => ({ data: call.table === 'rider_accounts' ? account : call.operations.some(op => op[0] === 'eq' && op[2] === 'out_for_delivery') ? [delivery] : [], error: null }));
@@ -48,7 +48,9 @@ test('rider dashboard scopes active/history to verified rider and outlet, with b
     assert.ok(call.operations.some(op => op[0] === 'limit'));
   }
   const history = db.calls.find(call => call.operations?.some(op => op[0] === 'eq' && op[2] === 'delivered'));
-  assert.equal(history.operations.find(op => op[0] === 'select')[1], 'id,order_no,delivered_at');
+  const historyColumns = history.operations.find(op => op[0] === 'select')[1].split(',');
+  assert.ok(historyColumns.includes('collection_method'));
+  for (const privateField of ['customer_name', 'customer_phone', 'address_snapshot', 'guest_session_hash']) assert.ok(!historyColumns.includes(privateField));
   assert.ok(history.operations.some(op => op[0] === 'gte' && op[1] === 'delivered_at'));
 });
 
@@ -138,7 +140,8 @@ test('completion uses verified identity, ignores client-supplied actor/payment f
   assert.equal(result.status, 200);
   assert.equal(db.calls[0].rpc, 'complete_rider_delivery');
   assert.equal(db.calls[0].args.acting_user, USER);
-  assert.deepEqual(Object.keys(db.calls[0].args).sort(), ['acting_user', 'target_order_id']);
+  assert.deepEqual(Object.keys(db.calls[0].args).sort(), ['acting_user', 'collection', 'target_order_id']);
+  assert.equal(db.calls[0].args.collection, null);
   assert.equal(result.headers['Cache-Control'], 'private, no-store');
 });
 
@@ -146,6 +149,18 @@ test('completion rejects malformed order IDs before RPC', async () => {
   const { api, db } = route(completePath);
   assert.equal((await api.POST(request(), { params: Promise.resolve({ id: 'not-an-id' }) })).status, 400);
   assert.equal(db.calls.length, 0);
+});
+
+test('riders cannot self-declare verified UPI; explicit cash uses verified actor', async () => {
+  for (const collection of ['upi_delivery', 'online', 'paid']) {
+    const { api, db } = route(completePath);
+    assert.equal((await api.POST(request(true, { collection }), params)).status, 400);
+    assert.equal(db.calls.length, 0);
+  }
+  const { api, db } = route(completePath);
+  assert.equal((await api.POST(request(true, { collection: 'cash', acting_user: 'forged' }), params)).status, 200);
+  assert.equal(db.calls[0].args.collection, 'cash');
+  assert.equal(db.calls[0].args.acting_user, USER);
 });
 
 test('database access denial, stale status and missing migration fail closed with sanitized errors', async () => {

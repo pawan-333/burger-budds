@@ -32,6 +32,10 @@ export async function openCashfreeCheckout(orderId: string) {
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Payment checkout is unavailable.");
+  await openCashfreeSession(data);
+}
+
+export async function openCashfreeSession(data: { paymentSessionId: string; mode: "sandbox" | "production" }) {
   await loadCashfreeSdk();
   if (!window.Cashfree || !["sandbox", "production"].includes(data.mode)) throw new Error("Payment mode mismatch.");
   const result = await window.Cashfree({ mode: data.mode }).checkout({ paymentSessionId: data.paymentSessionId, redirectTarget: "_self" });

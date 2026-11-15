@@ -73,11 +73,12 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod");
   const [onlineEnabled, setOnlineEnabled] = useState(false);
   const [testPayment, setTestPayment] = useState(false);
+  const [paymentSetup, setPaymentSetup] = useState<"loading" | "ready" | "pending" | "error">("loading");
   useEffect(() => {
     let active = true;
     fetch("/api/payments/cashfree", { cache: "no-store" })
-      .then((response) => response.json()).then((data) => { if (active) { setOnlineEnabled(data.enabled === true); setTestPayment(data.mode === "sandbox"); } })
-      .catch(() => {});
+      .then((response) => { if (!response.ok) throw new Error(); return response.json(); }).then((data) => { if (active) { setOnlineEnabled(data.enabled === true); setTestPayment(data.mode === "sandbox"); setPaymentSetup(data.enabled === true ? "ready" : "pending"); } })
+      .catch(() => { if (active) setPaymentSetup("error"); });
     return () => { active = false; };
   }, []);
   const [pickupPhone, setPickupPhone] = useState("");
@@ -795,7 +796,7 @@ export default function CheckoutPage() {
                       }`}
                     >
                       <CreditCard className="w-4 h-4" />
-                      <span>{onlineEnabled ? (testPayment ? "UPI · Test" : "UPI") : "UPI · Setup pending"}</span>
+                      <span>{onlineEnabled ? (testPayment ? "UPI · Test" : "UPI") : paymentSetup === "loading" ? "UPI · Checking…" : paymentSetup === "error" ? "UPI · Temporarily unavailable" : "UPI · Setup pending"}</span>
                     </button>
                   </div>
                 </div>
@@ -851,7 +852,9 @@ export default function CheckoutPage() {
                         <>
                           <Check className="w-5 h-5" />
                           <span>
-                            {user
+                            {paymentMethod === "cashfree"
+                              ? `Continue to UPI · ₹${grandTotal}`
+                              : user
                               ? `Pay ₹${grandTotal} (${
                                   paymentMethod === "cod"
                                     ? "Cash on Delivery"
@@ -893,6 +896,8 @@ export default function CheckoutPage() {
               <span>
                 {placingOrder
                   ? "Placing Order..."
+                  : paymentMethod === "cashfree"
+                  ? "Continue to UPI →"
                   : user
                   ? `Pay ₹${grandTotal} →`
                   : `Place COD Order →`}

@@ -31,6 +31,14 @@ export function cashfreeEnabled() {
   try { cashfreeConfig(); return true; } catch { return false; }
 }
 
+// Only coarse readiness codes may leave the server; never return credentials.
+export function cashfreeSetupStatus() {
+  if (cashfreeEnabled()) return "ready";
+  if (process.env.CASHFREE_ENABLED !== "true") return "disabled";
+  if (!process.env.CASHFREE_CLIENT_ID?.trim() || !process.env.CASHFREE_CLIENT_SECRET?.trim()) return "credentials_missing";
+  return "configuration_invalid";
+}
+
 export interface CashfreeOrder {
   order_id: string;
   order_status: string;

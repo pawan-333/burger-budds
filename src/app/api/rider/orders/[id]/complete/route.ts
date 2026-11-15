@@ -9,7 +9,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!user) return riderJson({ error: "Sign in again to update a delivery." }, 401);
     const { id } = await params;
     if (!isRiderUuid(id)) return riderJson({ error: "Invalid order." }, 400);
-    const { data, error } = await getRiderDb().rpc("complete_rider_delivery", { target_order_id: id, acting_user: user.id });
+    const body = await request.json().catch(() => ({}));
+    if (body.collection !== undefined && body.collection !== "cash") return riderJson({ error: "Invalid collection method." }, 400);
+    const { data, error } = await getRiderDb().rpc("complete_rider_delivery", { target_order_id: id, acting_user: user.id, collection: body.collection || null });
     if (error) return riderRpcError(error);
     return riderJson({ order: data });
   } catch (error) { return riderError(error); }

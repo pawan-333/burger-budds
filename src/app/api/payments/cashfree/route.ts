@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cashfreeConfig, cashfreeEnabled } from "@/lib/cashfree";
+import { cashfreeConfig, cashfreeEnabled, cashfreeSetupStatus } from "@/lib/cashfree";
 import { ownedCashfreeOrder, createCashfreeSession } from "@/lib/cashfree-orders";
 
 export const dynamic = "force-dynamic";
 export function GET() {
   const enabled = cashfreeEnabled();
-  return NextResponse.json({ enabled, mode: enabled ? cashfreeConfig().mode : null }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ enabled, mode: enabled ? cashfreeConfig().mode : null, setup: cashfreeSetupStatus() }, { headers: { "Cache-Control": "no-store" } });
 }
 export async function POST(req: NextRequest) {
   try {

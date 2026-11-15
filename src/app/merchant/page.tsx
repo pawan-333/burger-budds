@@ -42,6 +42,7 @@ import { PUBLIC_MERCHANT_ACCESS } from "@/lib/site-access";
 import { verifyMerchantAccess } from "@/lib/merchant-access";
 import { outletHours } from "@/lib/outlet-hours";
 import { parseRiderDetails } from "@/lib/order-rider";
+import { collectionLabel } from "@/lib/payment-collection";
 import { RegisteredRiderPicker } from "@/components/merchant/RegisteredRiderPicker";
 
 export default function MerchantAppPage() {
@@ -505,6 +506,10 @@ export default function MerchantAppPage() {
       "Type",
       "Status",
       "Payment",
+      "Collection method",
+      "Collected at",
+      "Rider ID",
+      "Payment reference",
       "Grand Total (INR)",
     ];
     const rows = orders.map((o) => [
@@ -515,6 +520,10 @@ export default function MerchantAppPage() {
       o.order_type,
       o.status,
       o.payment_method,
+      collectionLabel(o),
+      o.collected_at || "",
+      o.collected_by || "",
+      o.collection_reference || "",
       o.grand_total,
     ]);
     const csvContent =
@@ -851,9 +860,11 @@ export default function MerchantAppPage() {
                               }`}
                             >
                               {ord.payment_method === "cod"
-                                ? `COD ₹${ord.grand_total}`
+                                ? `${ord.payment_status === "paid" ? "PAID" : "COD"} ₹${ord.grand_total}`
                                 : `${ord.payment_method === "cashfree" && ord.payment_environment !== "production" ? "TEST " : ""}${ord.payment_status === "paid" ? "PAID" : "PAYMENT PENDING"} ₹${ord.grand_total}`}
                             </span>
+                            <p className="mt-1 text-xs font-bold">{ord.payment_environment === "sandbox" ? "TEST · " : ""}{collectionLabel(ord)}</p>
+                            {ord.collected_at && <p className="break-all text-xs text-text-muted">{new Date(ord.collected_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} · Rider: {ord.rider_name || ord.collected_by || "—"}{ord.collection_reference ? ` · Ref: ${ord.collection_reference}` : ""}</p>}
                             <p className="text-[11px] text-text-muted mt-1">
                               {new Date(ord.placed_at).toLocaleTimeString([], {
                                 hour: "2-digit",

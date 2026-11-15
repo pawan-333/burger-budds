@@ -17,6 +17,13 @@ function load(file, modules = {}, globals = {}) {
   return context.exports;
 }
 const core = load('src/lib/cashfree.ts');
+test('readiness reports safe setup codes without returning secret values', () => {
+  for (const [patch, expected] of [[{ CASHFREE_ENABLED: 'false' }, 'disabled'], [{ CASHFREE_CLIENT_SECRET: '' }, 'credentials_missing'], [{ CASHFREE_SITE_URL: 'http://example.test' }, 'configuration_invalid'], [{}, 'ready']]) {
+    const instance = load('src/lib/cashfree.ts', {}, { process: { env: { ...ENV, ...patch } } });
+    assert.equal(instance.cashfreeSetupStatus(), expected);
+    assert.ok(!instance.cashfreeSetupStatus().includes(ENV.CASHFREE_CLIENT_ID));
+  }
+});
 test('sandbox preview may use its deployment URL; production still requires the explicit approved site', () => {
   const preview = load('src/lib/cashfree.ts', {}, { process: { env: { ...ENV, CASHFREE_SITE_URL: '', VERCEL_ENV: 'preview', VERCEL_URL: 'burger-budds-preview.vercel.app' } } });
   assert.equal(preview.cashfreeConfig().origin, 'https://burger-budds-preview.vercel.app');

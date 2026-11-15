@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight, Bike, Check, CheckCircle2, Clock3, LogOut, MapPin, Navigation, PackageCheck, Phone, RefreshCw, ShieldCheck, WifiOff } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { riderLoginIdentity } from "@/lib/rider-login";
+import { openCashfreeSession } from "@/lib/cashfree-checkout";
 import type { RiderDashboardData, RiderDelivery } from "@/types/database";
 
 const money = (amount: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(amount);
@@ -19,6 +20,29 @@ function destination(order: RiderDelivery) {
 }
 
 export default function RiderPage() {
+  const [payment, setPayment] = useState<{ paymentSessionId: string; mode: "sandbox" | "production" } | null>(null);
+  const [ready, setReady] = useState(false);
+  const [returned, setReturned] = useState(false);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    setReturned(new URLSearchParams(window.location.search).has("paymentReturn"));
+    if (window.location.hash.startsWith("#delivery-payment=")) {
+      try {
+        const value = JSON.parse(decodeURIComponent(window.location.hash.slice(18)));
+        if (typeof value.paymentSessionId !== "string" || value.paymentSessionId.length > 4096 || !["sandbox", "production"].includes(value.mode)) throw new Error();
+        setPayment(value);
+      } catch { setMessage("Invalid payment link. Ask your rider for a new link."); }
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+    setReady(true);
+  }, []);
+  if (!ready) return <main className="p-6">Loading…</main>;
+  if (returned || payment || message) return <main className="mx-auto max-w-lg space-y-4 p-6"><h1 className="text-xl font-bold">Burger Budds · Delivery payment</h1><p>{returned ? "Payment attempt finished. Ask your rider to refresh and verify the payment before paying again." : "Confirm the merchant name and order amount in Cashfree checkout before paying."}</p>{payment?.mode === "sandbox" && <p className="font-bold">TEST PAYMENT · No real money</p>}{message && <p role="status">{message}</p>}{payment && <button disabled={busy} className={`${buttonClass} bg-brand-primary`} onClick={async () => { setBusy(true); setMessage(""); try { await openCashfreeSession(payment); } catch (err) { setMessage(err instanceof Error ? err.message : "Payment unavailable."); } finally { setBusy(false); } }}>{busy ? "Opening…" : "Open UPI checkout"}</button>}</main>;
+  return <RiderDashboard />;
+}
+
+function RiderDashboard() {
   const [userId, setUserId] = useState<string | null>();
   const [data, setData] = useState<RiderDashboardData | null>(null);
   const [error, setError] = useState("");
@@ -31,6 +55,7 @@ export default function RiderPage() {
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
   const [signingIn, setSigningIn] = useState(false);
+  const [paymentQr, setPaymentQr] = useState<{ orderId: string; dataUrl: string; mode: "sandbox" | "production" } | null>(null);
   const request = useRef<AbortController | null>(null);
   const revision = useRef(0);
   const fetching = useRef(false);
@@ -50,7 +75,7 @@ export default function RiderPage() {
         fetching.current = false;
         saving.current = false;
         pollAllowed.current = true;
-        setData(null); setError(""); setActionMessage(""); setConfirmId(null); setPendingId(null);
+        setData(null); setError(""); setActionMessage(""); setConfirmId(null); setPendingId(null); setPaymentQr(null);
         setUserId(nextUser);
       }
     });
@@ -121,7 +146,7 @@ export default function RiderPage() {
   }
 
   async function signOut() {
-    revision.current++; request.current?.abort(); setData(null); setConfirmId(null);
+    revision.current++; request.current?.abort(); setData(null); setConfirmId(null); setPaymentQr(null);
     try {
       const result = await getSupabaseBrowserClient()?.auth.signOut({ scope: "local" });
       if (result?.error) throw new Error("Sign-out failed. Please retry.");
@@ -142,7 +167,7 @@ export default function RiderPage() {
       const token = session?.data.session?.access_token;
       if (!token || session?.error) throw new Error("Session unavailable. Sign in again before confirming delivery.");
       const response = await fetch(`/api/rider/orders/${encodeURIComponent(order.id)}/complete`, {
-        method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: controller.signal,
+        method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ collection: order.cod_due > 0 ? "cash" : undefined }), signal: controller.signal,
       });
       const body = await response.json();
       if (ticket !== revision.current) return;
@@ -156,6 +181,31 @@ export default function RiderPage() {
         saving.current = false; setPendingId(null); setConfirmId(null); void load();
       }
     }
+  }
+
+  async function paymentAction(order: RiderDelivery, action: "start" | "check") {
+    if (saving.current || !navigator.onLine) return;
+    saving.current = true; setPendingId(order.id); setActionMessage("");
+    const ticket = ++revision.current; request.current?.abort(); fetching.current = false; setLoading(false);
+    const controller = new AbortController(); request.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(), 20000);
+    try {
+      const token = (await getSupabaseBrowserClient()?.auth.getSession())?.data.session?.access_token;
+      if (ticket !== revision.current) return;
+      if (!token) throw new Error("Sign in again.");
+      const response = await fetch(`/api/rider/orders/${order.id}/payment`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ action }), signal: controller.signal });
+      const body = await response.json();
+      if (ticket !== revision.current) return;
+      if (!response.ok) throw new Error(body.error || "Payment unavailable.");
+      if (body.qrCode) {
+        setPaymentQr({ orderId: order.id, dataUrl: body.qrCode, mode: body.mode });
+        setActionMessage(body.mode === "sandbox" ? "TEST QR ready. No real money will be collected." : "Cashfree UPI QR ready. Keep it open until payment is verified.");
+      } else {
+        if (body.paid || body.expired || body.delivered) setPaymentQr(null);
+        setActionMessage(body.delivered ? "Cashfree payment verified. Order delivered automatically." : body.paid ? "UPI payment verified. Do not collect again." : body.expired ? "UPI expired. Cash collection is now available. Any late payment needs store review." : "UPI is pending. Do not collect cash or ask the customer to pay again.");
+      }
+    } catch (err) { if (ticket === revision.current) setActionMessage(err instanceof Error ? err.message : "Payment unavailable. Check status before retrying."); }
+    finally { window.clearTimeout(timeout); if (ticket === revision.current) { saving.current = false; setPendingId(null); void load(); } }
   }
 
   return <main className="min-h-screen bg-surface-page pb-10 text-text-primary">
@@ -216,13 +266,19 @@ export default function RiderPage() {
                       {canCall ? <a href={`tel:${phone}`} className={`${buttonClass} flex items-center justify-center gap-2 border border-border-muted`}><Phone size={17} aria-hidden="true" />Call customer</a> : <span className="py-3 text-sm text-text-muted">Phone unavailable</span>}
                       {map ? <a href={map} target="_blank" rel="noopener noreferrer" className={`${buttonClass} flex items-center justify-center gap-2 border border-border-muted`}><Navigation size={17} aria-hidden="true" />Navigate</a> : <span className="py-3 text-sm text-text-muted">Map unavailable</span>}
                     </div>
-                    {confirmId === order.id ? <div className="rounded-md border border-brand-secondary/30 bg-brand-secondarySoft p-4"><p className="text-sm font-bold">Have you handed this order to the customer?</p><p className="mt-1 text-xs text-text-muted">This confirms delivery only. Payment records are not changed.</p><div className="mt-3 flex gap-2"><button onClick={() => void complete(order)} disabled={!!pendingId || !online || loading} className={`${buttonClass} flex-1 bg-brand-secondary text-white`}>{pendingId === order.id ? "Saving…" : "Confirm delivered"}</button><button onClick={() => setConfirmId(null)} disabled={!!pendingId} className={`${buttonClass} border border-border-muted bg-white`}>Go back</button></div></div> : <button onClick={() => setConfirmId(order.id)} disabled={!!pendingId || !online || loading} className={`${buttonClass} flex w-full items-center justify-center gap-2 bg-brand-secondary text-white`}><PackageCheck size={19} aria-hidden="true" />Mark delivered</button>}
+                    {order.cod_due > 0 && <div className="space-y-3 rounded-md border border-border-muted p-4">
+                      <p className="text-sm font-bold">Collect {money(order.cod_due)} · Cash or UPI</p>
+                      <div className="flex flex-wrap gap-2"><button className={`${buttonClass} border border-border-muted`} disabled={!!pendingId || !online || loading} onClick={() => void paymentAction(order, "start")}>Show UPI QR</button><button className={`${buttonClass} border border-border-muted`} disabled={!!pendingId || !online || loading} onClick={() => void paymentAction(order, "check")}>Check UPI payment</button></div>
+                      {order.payment_pending && <p className="text-sm">UPI attempt open. Check payment before collecting cash or confirming delivery.</p>}
+                      {paymentQr?.orderId === order.id && <div className="grid justify-items-center gap-2 rounded-md bg-white p-4 text-center"><p className="text-sm font-bold">Customer: scan this Cashfree QR to pay {money(order.cod_due)}</p>{paymentQr.mode === "sandbox" && <p className="text-xs font-bold text-status-warning">TEST PAYMENT · No real money</p>}<img src={paymentQr.dataUrl} alt={`Cashfree UPI QR for order ${order.order_no}`} width="240" height="240" className="h-60 w-60" /><p className="text-xs text-text-muted">Delivery completes after Cashfree confirms payment. If not updated, tap Check UPI payment.</p></div>}
+                    </div>}
+                    {confirmId === order.id ? <div className="rounded-md border border-brand-secondary/30 bg-brand-secondarySoft p-4"><p className="text-sm font-bold">{order.cod_due > 0 ? "Have you collected the full amount in CASH and handed over the order?" : "Have you handed this order to the customer?"}</p><p className="mt-1 text-xs text-text-muted">Cash collection is your declaration. For UPI, check verified payment first; do not confirm cash.</p><div className="mt-3 flex gap-2"><button onClick={() => void complete(order)} disabled={!!pendingId || !online || loading || !!order.payment_pending} className={`${buttonClass} flex-1 bg-brand-secondary text-white`}>{pendingId === order.id ? "Saving…" : "Confirm delivered"}</button><button onClick={() => setConfirmId(null)} disabled={!!pendingId} className={`${buttonClass} border border-border-muted bg-white`}>Go back</button></div></div> : <button onClick={() => setConfirmId(order.id)} disabled={!!pendingId || !online || loading || !!order.payment_pending} className={`${buttonClass} flex w-full items-center justify-center gap-2 bg-brand-secondary text-white`}><PackageCheck size={19} aria-hidden="true" />{order.cod_due > 0 ? "Confirm cash & delivery" : "Mark delivered"}</button>}
                   </div>
                 </article>;
               })}
             </div> : <section className="rounded-2xl border border-border-subtle bg-white p-5">
               <h2 className="font-extrabold">Your recent deliveries</h2><p className="mt-1 text-xs text-text-muted">Latest 20 from the past 7 days. Customer contact details are hidden after delivery.</p>
-              {!data.history.length ? <p className="py-10 text-center text-sm text-text-muted">Completed deliveries will appear here.</p> : <ul className="mt-4 divide-y divide-border-subtle">{data.history.map(order => <li key={order.id} className="flex items-center gap-3 py-4"><CheckCircle2 size={21} className="text-brand-secondary" aria-hidden="true" /><div><p className="font-bold">#{order.order_no}</p><p className="mt-1 flex items-center gap-1 text-xs text-text-muted"><Clock3 size={12} aria-hidden="true" />{new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" }).format(new Date(order.delivered_at))}</p></div><span className="ml-auto text-xs font-bold text-brand-secondary">Delivered</span></li>)}</ul>}
+              {!data.history.length ? <p className="py-10 text-center text-sm text-text-muted">Completed deliveries will appear here.</p> : <ul className="mt-4 divide-y divide-border-subtle">{data.history.map(order => <li key={order.id} className="flex items-center gap-3 py-4"><CheckCircle2 size={21} className="text-brand-secondary" aria-hidden="true" /><div><p className="font-bold">#{order.order_no}</p><p className="mt-1 flex items-center gap-1 text-xs text-text-muted"><Clock3 size={12} aria-hidden="true" />{new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" }).format(new Date(order.delivered_at))}</p></div><span className="ml-auto text-xs font-bold text-brand-secondary">Delivered<br />{order.payment_label}</span></li>)}</ul>}
             </section>}
             <p className="mt-6 text-center text-xs text-text-muted">Refreshes every 15 seconds while this page is visible.</p>
           </>}

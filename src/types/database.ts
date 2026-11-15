@@ -247,6 +247,10 @@ export interface OrderRecord {
   coupon_code: string | null;
   payment_method: PaymentMethod;
   payment_environment?: "sandbox" | "production" | null;
+  collection_method?: "cash" | "upi_delivery" | null;
+  collected_at?: string | null;
+  collected_by?: string | null;
+  collection_reference?: string | null;
   payment_status: "pending" | "paid" | "refunded" | "failed";
   razorpay_order_id: string | null;
   special_instructions: string;
@@ -277,6 +281,7 @@ export interface RiderDelivery {
   instructions: string;
   cod_due: number;
   payment_label: string;
+  payment_pending?: boolean;
   items: { name: string; qty: number; variant: string | null }[];
 }
 
@@ -284,5 +289,5 @@ export interface RiderDashboardData {
   rider: { name: string; outlet_name: string };
   active: RiderDelivery[];
   active_limit_reached: boolean;
-  history: { id: string; order_no: string; delivered_at: string }[];
+  history: { id: string; order_no: string; delivered_at: string; payment_label?: string }[];
 }

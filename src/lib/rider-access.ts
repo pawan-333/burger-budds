@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdminClient } from "@/lib/server-db";
 import type { Address, RegisteredRider, RiderDashboardData, RiderDelivery } from "@/types/database";
+import { collectionLabel, type CollectionDetails } from "@/lib/payment-collection";
 
 export const isRiderUuid = (value: unknown): value is string =>
   typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -50,23 +51,25 @@ export async function getRiderAccount(userId: string) {
   return { db, account };
 }
 
-interface DeliveryRow {
+interface DeliveryRow extends CollectionDetails {
   id: string; order_no: string; customer_name: string; customer_phone: string;
   address_snapshot: Address | null; special_instructions: string | null;
   grand_total: number; payment_method: string; payment_status: string;
+  cashfree_payments?: { state: string } | { state: string }[] | null;
   items: { item_name: string; qty: number; variant: string | null }[];
 }
 
 export function toRiderDelivery(order: DeliveryRow): RiderDelivery {
   const address = order.address_snapshot;
-  const due = order.payment_method === "cod" && order.payment_status !== "paid" ? Number(order.grand_total) : 0;
+  const due = order.payment_method === "cod" && order.payment_status === "pending" ? Number(order.grand_total) : 0;
   if (!Number.isFinite(due) || due < 0) throw new RiderAccessError(503, "Order amount is unavailable. Contact your store.");
   return {
     id: order.id, order_no: order.order_no, customer_name: order.customer_name,
     customer_phone: order.customer_phone,
     address: address ? { house: address.house, landmark: address.landmark, locality: address.locality, city: address.city, lat: address.lat, lng: address.lng } : null,
     instructions: order.special_instructions || "", cod_due: due,
-    payment_label: due > 0 ? "Cash on delivery" : order.payment_status === "paid" ? "Paid — do not collect cash" : "No cash due",
+    payment_label: due === 0 && order.payment_status === "pending" ? "No cash due" : collectionLabel(order),
+    payment_pending: (Array.isArray(order.cashfree_payments) ? order.cashfree_payments[0] : order.cashfree_payments)?.state === "pending",
     items: (order.items || []).map(item => ({ name: item.item_name, qty: item.qty, variant: item.variant })),
   };
 }
@@ -75,11 +78,11 @@ export async function getRiderDashboard(userId: string): Promise<RiderDashboardD
   const { db, account } = await getRiderAccount(userId);
   const scope = () => db.from("orders");
   const [active, history] = await Promise.all([
-    scope().select("id,order_no,customer_name,customer_phone,address_snapshot,special_instructions,grand_total,payment_method,payment_status,items:order_items(item_name,qty,variant)")
+    scope().select("id,order_no,customer_name,customer_phone,address_snapshot,special_instructions,grand_total,payment_method,payment_status,collection_method,collected_at,cashfree_payments(state),items:order_items(item_name,qty,variant)")
       .eq("rider_id", account.rider_id).eq("outlet_id", account.outlet_id).eq("order_type", "delivery")
       .eq("status", "out_for_delivery").or("payment_method.eq.cod,payment_status.eq.paid")
       .order("placed_at", { ascending: true }).limit(101),
-    scope().select("id,order_no,delivered_at")
+    scope().select("id,order_no,delivered_at,payment_method,payment_status,collection_method")
       .eq("rider_id", account.rider_id).eq("outlet_id", account.outlet_id).eq("order_type", "delivery").eq("status", "delivered")
       .gte("delivered_at", new Date(Date.now() - 7 * 86400000).toISOString())
       .order("delivered_at", { ascending: false }).limit(20),
@@ -89,7 +92,7 @@ export async function getRiderDashboard(userId: string): Promise<RiderDashboardD
     rider: { name: account.rider.name, outlet_name: account.outlet.name },
     active: (active.data || []).slice(0, 100).map(row => toRiderDelivery(row as unknown as DeliveryRow)),
     active_limit_reached: (active.data || []).length > 100,
-    history: (history.data || []) as RiderDashboardData["history"],
+    history: (history.data || []).map(row => ({ id: row.id, order_no: row.order_no, delivered_at: row.delivered_at, payment_label: collectionLabel(row) })),
   };
 }
 

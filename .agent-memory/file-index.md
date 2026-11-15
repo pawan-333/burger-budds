@@ -59,9 +59,19 @@ src/lib/rider-access.ts · verified account/outlet scope, minimal DTOs, private 
 src/app/api/rider/ · private order list and bearer-auth completion via RPC · verified@2026-10-30
 src/app/api/riders/route.ts · merchant outlet-authorized registered rider options · verified@2026-10-30
 src/components/merchant/RegisteredRiderPicker.tsx · scoped handover selection; manual fallback · verified@2026-10-30
-supabase/migrations/021_rider_dashboard.sql · account mapping + atomic RPCs; UNAPPLIED · reviewed@2026-10-30
+supabase/migrations/021_rider_dashboard.sql · APPLIED account mapping; completion extended by022 · verified@2026-11-02
 tests/rider.test.cjs · mocked rider/API isolation, errors, payload and handover regression · verified@2026-10-30
 docs/rider-dashboard.md · exact files, activation, checks/limits, rollback, AGENTS proposal · verified@2026-10-30
 src/lib/rider-login.ts · normalized mobile to private Auth identity · verified@e4b8724
 src/app/api/admin/riders/route.ts · super-admin PIN setup and activation · verified@e4b8724
 src/app/admin/riders/page.tsx · saved rider private PIN form · verified@e4b8724
+src/lib/payment-collection.ts · collection labels; cash declaration vs verified UPI · verified@2026-11-02
+src/app/api/rider/orders/[id]/payment/route.ts · assigned rider Cashfree QR and payment reconciliation · verified@2026-11-15
+supabase/migrations/022_delivery_collection.sql · APPLIED collection RPCs/guards; immutable · verified@2026-11-02
+docs/delivery-collection.md · exact inventory, sandbox setup, DB gates and checks · verified@2026-11-02
+supabase/migrations/023_rider_upi_auto_delivery.sql · pending atomic verified-rider-UPI delivery RPC update · verified@2026-11-15
+tests/delivery-collection-preflight.sql · read-only live schema snapshot · verified@2026-11-02
+tests/delivery-collection-postflight.sql · read-only022 grants/RLS/guard checks · verified@2026-11-02
+tests/delivery-collection-db.test.sql · synthetic pg_temp collection regressions · verified@2026-11-02
+tests/run-delivery-collection-db-check.ps1 · pre022 rollback-only fixture harness · verified@2026-11-02
+src/app/checkout/[cartId]/page.tsx · UPI readiness and guest desktop/mobile payment CTA · verified@2026-11-02

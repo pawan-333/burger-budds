@@ -25,3 +25,6 @@
 2026-10-30 · Elevated hook test reused sandbox-owned temp repo and Git rejected ownership → create fixtures under the execution user; never broaden safe.directory.
 2026-10-30 · rg received a literal wildcard filename on Windows → use rg -g filters or resolve the exact filename first.
 2026-10-30 · new rider handlers assumed getSupabaseAdminClient was non-null → guard missing configuration before queries/RPCs and test503 behavior.
+- 2026-11-02 · Reporter flag appended through npm test was treated as a filename; changed history whitelist also needed updating → put Node runner flags before filenames and review DTO privacy assertions when extending history.
+- 2026-11-02 · Supabase db query --project-ref alone rejected before execution → use --linked --project-ref for Management API SQL; never use db push to bypass targeted migration execution.
+- 2026-11-02 · Guest checkout CTA ignored selected payment method on desktop and mobile → verify guest and signed-in CTA wording whenever adding/changing payment modes; inspect both responsive controls without submitting an order.

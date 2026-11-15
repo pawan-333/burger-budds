@@ -26,7 +26,7 @@ async function paymentRecord(orderId: string) {
   return { db, record: data };
 }
 
-export async function createCashfreeSession(order: { id: string; status: string; payment_status: string; customer_phone: string }) {
+export async function createCashfreeSession(order: { id: string; status: string; payment_status: string; customer_phone: string }, delivery = false) {
   const config = cashfreeConfig();
   if (order.payment_status === "paid" || ["cancelled", "rejected"].includes(order.status)) throw new Error("This order cannot be paid.");
   const { record } = await paymentRecord(order.id);
@@ -40,7 +40,7 @@ export async function createCashfreeSession(order: { id: string; status: string;
         order_id: record.provider_order_id, order_amount: Number(record.amount), order_currency: "INR",
         order_expiry_time: record.expires_at,
         customer_details: { customer_id: order.id, customer_phone: order.customer_phone.replace(/\D/g, "").slice(-10) },
-        order_meta: { return_url: `${config.origin}/track/${order.id}?order_id={order_id}`, notify_url: `${config.origin}/api/payments/cashfree/webhook`, payment_methods: "upi" },
+        order_meta: { return_url: delivery ? `${config.origin}/rider?paymentReturn=1` : `${config.origin}/track/${order.id}?order_id={order_id}`, notify_url: `${config.origin}/api/payments/cashfree/webhook`, payment_methods: "upi" },
       },
     });
   }
@@ -51,9 +51,37 @@ export async function createCashfreeSession(order: { id: string; status: string;
   return { paymentSessionId: provider.payment_session_id, mode: config.mode };
 }
 
+export async function createCashfreeDeliveryQr(order: { id: string; status: string; payment_status: string; customer_phone: string }) {
+  const session = await createCashfreeSession(order, true);
+  const { record } = await paymentRecord(order.id);
+  const result = await cashfreeRequest<{
+    channel?: string;
+    action?: string;
+    data?: { payload?: { qrcode?: string } };
+  }>("/orders/sessions", {
+    key: order.id,
+    body: {
+      payment_session_id: session.paymentSessionId,
+      transaction_expiry_time: record.expires_at,
+      payment_method: { upi: { channel: "qrcode" } },
+    },
+  });
+  const qrCode = result?.data?.payload?.qrcode;
+  if (result?.channel !== "qrcode" || result.action !== "custom" || typeof qrCode !== "string" ||
+      qrCode.length > 500_000 || !/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(qrCode)) {
+    throw new Error("Cashfree did not return a valid UPI QR code.");
+  }
+  return { qrCode, mode: session.mode };
+}
+
 export async function reconcileCashfreeOrder(orderId: string) {
   const { db, record } = await paymentRecord(orderId);
-  if (record.state === "paid") return { paid: true, refundRequired: record.refund_required };
+  if (record.state === "paid") {
+    if (record.purpose !== "delivery") return { paid: true, refundRequired: record.refund_required };
+    const { data: order, error } = await db.from("orders").select("status,collection_method").eq("id", orderId).maybeSingle();
+    if (error || !order) throw new Error("Payment status update unavailable.");
+    return { paid: true, delivered: order.status === "delivered" && order.collection_method === "upi_delivery", refundRequired: record.refund_required };
+  }
   const provider = await cashfreeRequest<CashfreeOrder>(`/orders/${encodeURIComponent(record.provider_order_id)}`);
   if (!provider) {
     if (Date.parse(record.expires_at) <= Date.now()) {
@@ -78,5 +106,5 @@ export async function reconcileCashfreeOrder(orderId: string) {
     provider_payment: String(payment.cf_payment_id), paid_amount: Number(record.amount),
   });
   if (error) throw new Error("Payment status update unavailable.");
-  return { paid: true, refundRequired: Boolean(data?.refund_required) };
+  return { paid: true, delivered: Boolean(data?.delivered), refundRequired: Boolean(data?.refund_required) };
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { MerchantLogin } from "@/components/merchant/MerchantLogin";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Outlet } from "@/types/database";
+import { collectionLabel, type CollectionDetails } from "@/lib/payment-collection";
 type Store = Outlet & { is_active: boolean };
 type Merchant = { id: string; email: string; outlet_id: string; role: string };
 const inputClass = "w-full min-h-[44px] border border-border-muted rounded-xs px-3 bg-surface-base";
@@ -11,6 +12,8 @@ const buttonClass = "min-h-[44px] px-4 py-2 rounded-xs bg-brand-primary text-tex
 export default function AdminPage() {
   const [access, setAccess] = useState("checking");
   const [stores, setStores] = useState<Store[]>([]);
+  const [collections, setCollections] = useState<(CollectionDetails & { id: string; order_no: string; outlet_id: string; grand_total: number; payment_environment: string | null; cashfree_payments: { refund_required: boolean } | null; rider: { name: string } | null })[]>([]);
+  const [collectionsUnavailable, setCollectionsUnavailable] = useState(false);
   const [merchants, setMerchants] = useState<Merchant[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -24,6 +27,7 @@ export default function AdminPage() {
       if (!response.ok) throw new Error();
       const data = await response.json();
       setStores(data.stores); setMerchants(data.merchants); setAccess("allowed");
+      setCollections(data.collections || []); setCollectionsUnavailable(Boolean(data.collectionsUnavailable));
     } catch { setMessage("Unable to load admin dashboard. Please retry."); setAccess("error"); }
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -43,6 +47,7 @@ export default function AdminPage() {
   return <main className="min-h-screen bg-surface-page text-text-primary p-4 sm:p-8"><div className="max-w-6xl mx-auto space-y-6">
     <header className="flex flex-wrap justify-between gap-4"><div><h1 className="text-2xl font-extrabold">Burger Budds Super Admin</h1><p className="text-text-secondary">Manage all stores and merchant access.</p></div><button className={buttonClass} onClick={() => void signOut()}>Sign out</button></header>
     <Link href="/admin/riders" className="inline-flex min-h-[44px] items-center rounded-xs bg-brand-secondary px-4 font-bold text-white">Rider PIN setup</Link>
+    <section className="space-y-3"><div className="flex flex-wrap items-center gap-3"><h2 className="text-xl font-bold">Recent paid orders · latest 50</h2><button className={buttonClass} onClick={() => void load()}>Refresh payments</button></div>{collectionsUnavailable ? <p role="alert">Collection records unavailable. Check database setup and retry.</p> : !collections.length ? <p>No paid orders found.</p> : collections.map(order => <article key={order.id} className="space-y-1 rounded-md border border-border-subtle bg-surface-base p-4"><p className="font-bold">#{order.order_no} · ₹{order.grand_total} · {order.payment_environment === "sandbox" ? "TEST · " : ""}{collectionLabel(order)}</p><p className="text-sm">Outlet: {stores.find(store => store.id === order.outlet_id)?.name || order.outlet_id} · Rider: {order.rider?.name || order.collected_by || "—"}</p>{order.cashfree_payments?.refund_required && <p className="font-bold text-status-error">Payment requires refund/review. Check Cashfree before collecting again.</p>}{order.collected_at && <p className="text-sm">{new Date(order.collected_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</p>}{order.collection_reference && <p className="break-all text-sm">Reference: {order.collection_reference}</p>}</article>)}</section>
     {message && <p role="status" className="p-4 bg-surface-base border border-border-subtle rounded-md">{message}</p>}
     <section className="space-y-3"><h2 className="text-xl font-bold">Stores</h2>{stores.map(store => <article key={store.id} className="p-5 bg-surface-base border border-border-subtle rounded-md flex flex-wrap items-center justify-between gap-4"><div><h3 className="font-bold">{store.name}</h3><p className="text-sm text-text-secondary">{store.address}</p><p className="text-sm">{store.is_active ? "Active" : "Archived"}</p></div><form className="w-full sm:w-auto space-y-2" onSubmit={async event => { event.preventDefault(); const data = new FormData(event.currentTarget); await act({ action: "update_radius", outletId: store.id, radiusKm: Number(data.get("radiusKm")) }); }}>
       <label htmlFor={`radius-${store.id}`} className="block text-sm font-bold">Delivery radius (km)</label>
