@@ -102,6 +102,7 @@ export default function MerchantAppPage() {
     "Item out of stock"
   );
   const [printingOrder, setPrintingOrder] = useState<OrderRecord | null>(null);
+  const [printBillWithKot, setPrintBillWithKot] = useState(false);
   const [handoverOrderId, setHandoverOrderId] = useState<string | null>(null);
   const [riderName, setRiderName] = useState("");
   const [riderPhone, setRiderPhone] = useState("");
@@ -438,22 +439,22 @@ export default function MerchantAppPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         outletSlug: merchantSlug,
-        customerName: "Vikramaditya Scindia",
-        customerPhone: "+91 98260 77889",
+        customerName: "Demo Customer",
+        customerPhone: "0000000000",
         orderType: "delivery",
         paymentMethod: "cod",
         couponCode: "FLAT129",
-        specialInstructions: "Extra peri-peri seasoning on fries, ring bell once",
+        specialInstructions: "Demo order created by merchant.",
         address: {
           id: "addr-sim",
           user_id: "sim-user",
           label: "home",
-          house: "14, Jai Vilas Enclave, Vinay Nagar",
-          landmark: "Near Sector 3 Market",
-          phone: "+91 98260 77889",
-          email: "vikram@example.com",
-          lat: 26.2201,
-          lng: 78.1815,
+          house: "Demo Address",
+          landmark: "Near outlet",
+          phone: "0000000000",
+          email: "",
+          lat: SEED_OUTLET.lat,
+          lng: SEED_OUTLET.lng,
           locality: "Vinay Nagar, Gwalior",
           city: "Gwalior",
         },
@@ -481,6 +482,15 @@ export default function MerchantAppPage() {
   };
 
   const handlePrintKot = (ord: OrderRecord) => {
+    setPrintBillWithKot(false);
+    setPrintingOrder(ord);
+    setTimeout(() => {
+      window.print();
+    }, 150);
+  };
+
+  const handlePrintAcceptedOrder = (ord: OrderRecord) => {
+    setPrintBillWithKot(true);
     setPrintingOrder(ord);
     setTimeout(() => {
       window.print();
@@ -945,11 +955,12 @@ export default function MerchantAppPage() {
                             <div className="grid grid-cols-2 gap-2.5">
                               <button
                                 type="button"
-                                onClick={() =>
-                                  handleOrderStatusChange(ord.id, "accepted", {
+                                onClick={async () => {
+                                  const accepted = await handleOrderStatusChange(ord.id, "accepted", {
                                     prepTimeMin: prepMin,
-                                  })
-                                }
+                                  });
+                                  if (accepted) handlePrintAcceptedOrder(ord);
+                                }}
                                 className="min-h-[44px] rounded-xs bg-brand-primary hover:bg-brand-primaryHover text-text-onPrimary font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-1"
                               >
                                 <CheckCircle2 className="w-4 h-4" />
@@ -1437,6 +1448,7 @@ export default function MerchantAppPage() {
                 <span>
                   {it.qty}x {it.item_name}
                   {it.variant ? ` (${it.variant})` : ""}
+                  {it.addons?.length ? ` + ${it.addons.map((addon) => addon.name).join(", ")}` : ""}
                 </span>
                 <span>₹{it.unit_price * it.qty}</span>
               </div>
@@ -1451,6 +1463,70 @@ export default function MerchantAppPage() {
             <span>TOTAL ({printingOrder.payment_method.toUpperCase()})</span>
             <span>₹{printingOrder.grand_total}</span>
           </div>
+          {printBillWithKot && (
+            <section className="mt-5 border-t-2 border-dashed border-text-primary pt-3">
+              <div className="text-center border-b border-dashed border-text-primary pb-2 mb-2">
+                <p className="text-sm font-extrabold">BURGER BUDDS — BILL</p>
+                <p>Order: #{printingOrder.order_no}</p>
+                <p>{new Date(printingOrder.placed_at).toLocaleString()}</p>
+                <p className="mt-1">{printingOrder.customer_name}</p>
+                {printingOrder.customer_phone && <p>{printingOrder.customer_phone}</p>}
+                {printingOrder.address_snapshot && (
+                  <p>
+                    {printingOrder.address_snapshot.house}, {printingOrder.address_snapshot.locality}
+                    {printingOrder.address_snapshot.city ? `, ${printingOrder.address_snapshot.city}` : ""}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1">
+                {printingOrder.items.map((it) => (
+                  <div key={it.id} className="flex justify-between">
+                    <span>
+                      {it.qty}x {it.item_name}{it.variant ? ` (${it.variant})` : ""}
+                      {it.addons?.length ? ` + ${it.addons.map((addon) => addon.name).join(", ")}` : ""}
+                    </span>
+                    <span>₹{it.unit_price * it.qty}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between border-t border-dashed border-text-primary pt-1">
+                  <span>Item Total</span>
+                  <span>₹{printingOrder.item_total}</span>
+                </div>
+                {printingOrder.discount > 0 && (
+                  <div className="flex justify-between">
+                    <span>{printingOrder.coupon_code ? `Discount (${printingOrder.coupon_code})` : "20% Discount"}</span>
+                    <span>− ₹{printingOrder.discount}</span>
+                  </div>
+                )}
+                {printingOrder.tax > 0 && (
+                  <div className="flex justify-between">
+                    <span>GST</span>
+                    <span>₹{printingOrder.tax}</span>
+                  </div>
+                )}
+                {printingOrder.order_type === "delivery" && (
+                  <div className="flex justify-between">
+                    <span>Delivery Fee</span>
+                    <span>{printingOrder.delivery_fee === 0 ? "FREE" : `₹${printingOrder.delivery_fee}`}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span>Handling Charge</span>
+                  <span>₹{printingOrder.platform_fee}</span>
+                </div>
+                {printingOrder.wallet_used > 0 && (
+                  <div className="flex justify-between">
+                    <span>BB Coins Used</span>
+                    <span>− ₹{printingOrder.wallet_used}</span>
+                  </div>
+                )}
+                <div className="flex justify-between border-t border-dashed border-text-primary pt-1 font-extrabold">
+                  <span>TOTAL ({printingOrder.payment_method.toUpperCase()})</span>
+                  <span>₹{printingOrder.grand_total}</span>
+                </div>
+              </div>
+            </section>
+          )}
         </div>
       )}
     </div>

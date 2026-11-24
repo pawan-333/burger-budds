@@ -29,6 +29,13 @@ import {
   SEED_OUTLET,
 } from "@/lib/seed-data";
 import {
+  AUTO_DISCOUNT_MAX,
+  AUTO_DISCOUNT_MINIMUM,
+  AUTO_DISCOUNT_PERCENT,
+  FREE_DELIVERY_MINIMUM,
+  HANDLING_CHARGE,
+} from "@/lib/pricing";
+import {
   BillBreakdown,
   Coupon,
   MenuItem,
@@ -220,14 +227,17 @@ export default function CheckoutPage() {
   };
 
   const feeRules = outletForPricing.delivery_fee_rules;
-  const estimatedDeliveryFee = orderType !== "delivery" || cartSubtotal >= feeRules.free_above
+  const estimatedDiscount = cartSubtotal >= AUTO_DISCOUNT_MINIMUM
+    ? Math.min(Math.round((cartSubtotal * AUTO_DISCOUNT_PERCENT) / 100), AUTO_DISCOUNT_MAX)
+    : 0;
+  const discount = bill?.discount ?? estimatedDiscount;
+  const estimatedDeliveryFee = orderType !== "delivery" || cartSubtotal >= FREE_DELIVERY_MINIMUM
     ? 0
     : Number(feeRules.base_fee) + Math.max(0, Math.ceil((selectedAddress?.distance_km ?? 1.5) - 3)) * Number(feeRules.per_km_above_3km);
-  const gstPercent = bill?.gstPercent ?? Number(outletForPricing.gst_percent ?? 5);
-  const tax = bill?.tax ?? Math.round(cartSubtotal * gstPercent / 100);
+  const tax = bill?.tax ?? 0;
   const deliveryFee = bill?.deliveryFee ?? estimatedDeliveryFee;
-  const platformFee = bill?.platformFee ?? Number(outletForPricing.platform_fee ?? 0) + Number(outletForPricing.packaging_fee ?? 0);
-  const grandTotal = bill?.grandTotal ?? cartSubtotal + tax + deliveryFee + platformFee;
+  const platformFee = bill?.platformFee ?? HANDLING_CHARGE;
+  const grandTotal = bill?.grandTotal ?? cartSubtotal - discount + tax + deliveryFee + platformFee;
   const walletBalance = user?.wallet_balance ?? 150;
 
   return (
@@ -676,7 +686,7 @@ export default function CheckoutPage() {
                 )}
               </section>
 
-              {/* SECTION 5: Bill Details (Item Total, GST 5%, Delivery Fee, Platform Fee, Discount, Grand Total) */}
+              {/* SECTION 5: Bill Details (Item Total, Delivery Fee, Handling Charge, Discount, Grand Total) */}
               <section
                 aria-labelledby="bill-details-heading"
                 className="rounded-md bg-surface-base border border-border-subtle p-4 sm:p-5 shadow-card space-y-3"
@@ -701,25 +711,18 @@ export default function CheckoutPage() {
                     </span>
                   </div>
 
-                  {bill && bill.discount > 0 && (
+                  {discount > 0 && (
                     <div className="flex justify-between text-status-open font-bold">
-                      <span>Coupon Discount ({bill.couponCode})</span>
-                      <span>− ₹{bill.discount}</span>
+                      <span>{bill?.couponCode ? `Coupon Discount (${bill.couponCode})` : bill ? "20% Discount" : "Estimated 20% Discount"}</span>
+                      <span>− ₹{discount}</span>
                     </div>
                   )}
-
-                  <div className="flex justify-between">
-                    <span>GST ({gstPercent}%)</span>
-                    <span className="font-bold text-text-primary">
-                      ₹{tax}
-                    </span>
-                  </div>
 
                   <div className="flex justify-between">
                     <span>
                       Delivery Fee{" "}
                       {orderType === "delivery"
-                        ? `(Free from ₹${feeRules.free_above})`
+                        ? `(Free from ₹${FREE_DELIVERY_MINIMUM})`
                         : ""}
                     </span>
                     <span className="font-bold text-text-primary">
@@ -734,7 +737,7 @@ export default function CheckoutPage() {
                   </div>
 
                   <div className="flex justify-between">
-                    <span>Platform Fee</span>
+                    <span>Handling Charge</span>
                     <span className="font-bold text-text-primary">
                       ₹{platformFee}
                     </span>

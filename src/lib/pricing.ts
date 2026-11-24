@@ -6,6 +6,12 @@ import {
   Outlet,
 } from "@/types/database";
 
+export const FREE_DELIVERY_MINIMUM = 199;
+export const AUTO_DISCOUNT_MINIMUM = 299;
+export const AUTO_DISCOUNT_PERCENT = 20;
+export const AUTO_DISCOUNT_MAX = 80;
+export const HANDLING_CHARGE = 9;
+
 export interface ServerCartItemInput {
   itemId: string;
   variantId?: string | null;
@@ -78,7 +84,7 @@ export function computeServerBill(params: {
   if (itemTotal === 0) {
     return {
       itemTotal: 0,
-      gstPercent: outlet.gst_percent,
+      gstPercent: 0,
       tax: 0,
       deliveryFee: 0,
       platformFee: 0,
@@ -91,9 +97,9 @@ export function computeServerBill(params: {
     };
   }
 
-  // Coupon validation
-  let discount = 0;
-  let appliedCode: string | null = null;
+  // Compare the automatic offer with one entered coupon; discounts never stack.
+  let couponDiscount = 0;
+  let validCoupon: Coupon | null = null;
   let couponMessage: string | null = null;
 
   if (couponCode && couponCode.trim().length > 0) {
@@ -110,30 +116,42 @@ export function computeServerBill(params: {
       const diff = Math.ceil(coupon.min_order - itemTotal);
       couponMessage = `Add items worth ₹${diff} more to apply ${coupon.code}`;
     } else {
-      appliedCode = coupon.code;
+      validCoupon = coupon;
       if (coupon.type === "flat") {
-        discount = Math.min(coupon.value, itemTotal);
+        couponDiscount = Math.min(coupon.value, itemTotal);
       } else if (coupon.type === "percent") {
         const raw = Math.round((itemTotal * coupon.value) / 100);
-        discount = coupon.max_discount ? Math.min(raw, coupon.max_discount) : raw;
+        couponDiscount = coupon.max_discount ? Math.min(raw, coupon.max_discount) : raw;
       }
-      if(coupon.type === 'fixed_price') discount=Math.max(0,itemTotal-coupon.value);
-      couponMessage = `Coupon ${coupon.code} applied! You saved ₹${discount}`;
+      if (coupon.type === "fixed_price") couponDiscount = Math.max(0, itemTotal - coupon.value);
     }
   }
 
-  const taxableAmount = Math.max(0, itemTotal - discount);
-  const gstPercent = Number(outlet.gst_percent ?? 5);
-  const tax = Math.round((taxableAmount * gstPercent) / 100);
+  const automaticDiscount = itemTotal >= AUTO_DISCOUNT_MINIMUM
+    ? Math.min(Math.round((itemTotal * AUTO_DISCOUNT_PERCENT) / 100), AUTO_DISCOUNT_MAX)
+    : 0;
+  let discount = 0;
+  let appliedCode: string | null = null;
+  if (automaticDiscount > 0 && automaticDiscount >= couponDiscount) {
+    discount = automaticDiscount;
+    couponMessage = `20% offer applied! You saved ₹${discount}`;
+  } else if (validCoupon) {
+    discount = couponDiscount;
+    appliedCode = validCoupon.code;
+    couponMessage = `Coupon ${validCoupon.code} applied! You saved ₹${discount}`;
+  }
+
+  const gstPercent = 0;
+  const tax = 0;
 
   let deliveryFee = 0;
   if (orderType === "delivery") {
     const rules = outlet.delivery_fee_rules || {
       base_fee: 29,
-      free_above: 299,
+      free_above: FREE_DELIVERY_MINIMUM,
       per_km_above_3km: 8,
     };
-    if (itemTotal >= rules.free_above) {
+    if (itemTotal >= FREE_DELIVERY_MINIMUM) {
       deliveryFee = 0;
     } else {
       deliveryFee = rules.base_fee;
@@ -143,7 +161,7 @@ export function computeServerBill(params: {
     }
   }
 
-  const platformFee = Number(outlet.platform_fee ?? 0) + Number(outlet.packaging_fee ?? 0);
+  const platformFee = HANDLING_CHARGE;
   const preWalletTotal = Math.max(
     0,
     itemTotal - discount + tax + deliveryFee + platformFee

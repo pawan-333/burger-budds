@@ -421,14 +421,16 @@ export default function OrderTrackingPage() {
                   </div>
                   {order.discount > 0 && (
                     <div className="flex justify-between text-status-open font-bold">
-                      <span>Discount ({order.coupon_code})</span>
+                      <span>{order.coupon_code ? `Discount (${order.coupon_code})` : "20% Discount"}</span>
                       <span>− ₹{order.discount}</span>
                     </div>
                   )}
-                  <div className="flex justify-between">
-                    <span>GST (5%)</span>
-                    <span>₹{order.tax}</span>
-                  </div>
+                  {order.tax > 0 && (
+                    <div className="flex justify-between">
+                      <span>GST (5%)</span>
+                      <span>₹{order.tax}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span>Delivery Fee</span>
                     <span>
@@ -438,7 +440,7 @@ export default function OrderTrackingPage() {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Platform Fee</span>
+                    <span>Handling Charge</span>
                     <span>₹{order.platform_fee}</span>
                   </div>
                   {order.wallet_used > 0 && (

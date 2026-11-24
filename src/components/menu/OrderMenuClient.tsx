@@ -35,6 +35,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 import { offerText } from "@/lib/offers";
 import { outletHours } from "@/lib/outlet-hours";
+import { FREE_DELIVERY_MINIMUM } from "@/lib/pricing";
 
 interface OrderMenuClientProps {
   initialOutlet: Outlet;
@@ -338,8 +339,8 @@ export function OrderMenuClient({
                 </p>
                 <p>
                   Within {outlet.delivery_radius_km} km radius • Min Order ₹
-                  {outlet.min_order} • Free delivery above ₹
-                  {outlet.delivery_fee_rules.free_above}
+                  {outlet.min_order} • Free delivery from ₹
+                  {FREE_DELIVERY_MINIMUM}
                 </p>
               </div>
             </div>
