@@ -29,6 +29,13 @@ import {
   SEED_OUTLET,
 } from "@/lib/seed-data";
 import {
+  AUTO_DISCOUNT_MAX,
+  AUTO_DISCOUNT_MINIMUM,
+  AUTO_DISCOUNT_PERCENT,
+  FREE_DELIVERY_MINIMUM,
+  HANDLING_CHARGE,
+} from "@/lib/pricing";
+import {
   BillBreakdown,
   Coupon,
   MenuItem,
@@ -71,6 +78,16 @@ export default function CheckoutPage() {
   );
   const [showAllCoupons, setShowAllCoupons] = useState<boolean>(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod");
+  const [onlineEnabled, setOnlineEnabled] = useState(false);
+  const [testPayment, setTestPayment] = useState(false);
+  const [paymentSetup, setPaymentSetup] = useState<"loading" | "ready" | "pending" | "error">("loading");
+  useEffect(() => {
+    let active = true;
+    fetch("/api/payments/cashfree", { cache: "no-store" })
+      .then((response) => { if (!response.ok) throw new Error(); return response.json(); }).then((data) => { if (active) { setOnlineEnabled(data.enabled === true); setTestPayment(data.mode === "sandbox"); setPaymentSetup(data.enabled === true ? "ready" : "pending"); } })
+      .catch(() => { if (active) setPaymentSetup("error"); });
+    return () => { active = false; };
+  }, []);
   const [pickupPhone, setPickupPhone] = useState("");
   const requestIdentity = useRef<{ signature: string; key: string } | null>(null);
   const billRequest = useRef(0);
@@ -173,7 +190,7 @@ export default function CheckoutPage() {
 
     setPlacingOrder(true);
     try {
-      const signature = JSON.stringify({ user: user?.id || "guest", cartItems, selectedAddress, orderType, couponCode, specialInstructions, pickupPhone });
+      const signature = JSON.stringify({ user: user?.id || "guest", outlet: activeOutlet.slug, cartItems, selectedAddress, orderType, couponCode, specialInstructions, pickupPhone, paymentMethod, useWallet });
       if (requestIdentity.current?.signature !== signature) requestIdentity.current = { signature, key: crypto.randomUUID() };
       const idempotencyKey = requestIdentity.current.key;
       const res = await fetch("/api/orders", {
@@ -210,9 +227,9 @@ export default function CheckoutPage() {
       }
 
       // Broadcast to Merchant App (/merchant) in real time!
-      notifyRealtimeUpdate("order_created", data.order);
+      if (paymentMethod === "cod") notifyRealtimeUpdate("order_created", data.order);
       clearCart();
-      router.push(`/track/${data.order.id}`);
+      router.push(`/track/${data.order.id}${paymentMethod === "cashfree" ? "?pay=1" : ""}`);
     } catch {
       setOrderError("Network error while placing your order. Please retry.");
       setPlacingOrder(false);
@@ -220,14 +237,17 @@ export default function CheckoutPage() {
   };
 
   const feeRules = outletForPricing.delivery_fee_rules;
-  const estimatedDeliveryFee = orderType !== "delivery" || cartSubtotal >= feeRules.free_above
+  const estimatedDiscount = cartSubtotal >= AUTO_DISCOUNT_MINIMUM
+    ? Math.min(Math.round((cartSubtotal * AUTO_DISCOUNT_PERCENT) / 100), AUTO_DISCOUNT_MAX)
+    : 0;
+  const discount = bill?.discount ?? estimatedDiscount;
+  const estimatedDeliveryFee = orderType !== "delivery" || cartSubtotal >= FREE_DELIVERY_MINIMUM
     ? 0
     : Number(feeRules.base_fee) + Math.max(0, Math.ceil((selectedAddress?.distance_km ?? 1.5) - 3)) * Number(feeRules.per_km_above_3km);
-  const gstPercent = bill?.gstPercent ?? Number(outletForPricing.gst_percent ?? 5);
-  const tax = bill?.tax ?? Math.round(cartSubtotal * gstPercent / 100);
+  const tax = bill?.tax ?? 0;
   const deliveryFee = bill?.deliveryFee ?? estimatedDeliveryFee;
-  const platformFee = bill?.platformFee ?? Number(outletForPricing.platform_fee ?? 0) + Number(outletForPricing.packaging_fee ?? 0);
-  const grandTotal = bill?.grandTotal ?? cartSubtotal + tax + deliveryFee + platformFee;
+  const platformFee = bill?.platformFee ?? HANDLING_CHARGE;
+  const grandTotal = bill?.grandTotal ?? cartSubtotal - discount + tax + deliveryFee + platformFee;
   const walletBalance = user?.wallet_balance ?? 150;
 
   return (
@@ -676,7 +696,7 @@ export default function CheckoutPage() {
                 )}
               </section>
 
-              {/* SECTION 5: Bill Details (Item Total, GST 5%, Delivery Fee, Platform Fee, Discount, Grand Total) */}
+              {/* SECTION 5: Bill Details (Item Total, Delivery Fee, Handling Charge, Discount, Grand Total) */}
               <section
                 aria-labelledby="bill-details-heading"
                 className="rounded-md bg-surface-base border border-border-subtle p-4 sm:p-5 shadow-card space-y-3"
@@ -701,25 +721,18 @@ export default function CheckoutPage() {
                     </span>
                   </div>
 
-                  {bill && bill.discount > 0 && (
+                  {discount > 0 && (
                     <div className="flex justify-between text-status-open font-bold">
-                      <span>Coupon Discount ({bill.couponCode})</span>
-                      <span>− ₹{bill.discount}</span>
+                      <span>{bill?.couponCode ? `Coupon Discount (${bill.couponCode})` : bill ? "20% Discount" : "Estimated 20% Discount"}</span>
+                      <span>− ₹{discount}</span>
                     </div>
                   )}
-
-                  <div className="flex justify-between">
-                    <span>GST ({gstPercent}%)</span>
-                    <span className="font-bold text-text-primary">
-                      ₹{tax}
-                    </span>
-                  </div>
 
                   <div className="flex justify-between">
                     <span>
                       Delivery Fee{" "}
                       {orderType === "delivery"
-                        ? `(Free from ₹${feeRules.free_above})`
+                        ? `(Free from ₹${FREE_DELIVERY_MINIMUM})`
                         : ""}
                     </span>
                     <span className="font-bold text-text-primary">
@@ -734,7 +747,7 @@ export default function CheckoutPage() {
                   </div>
 
                   <div className="flex justify-between">
-                    <span>Platform Fee</span>
+                    <span>Handling Charge</span>
                     <span className="font-bold text-text-primary">
                       ₹{platformFee}
                     </span>
@@ -776,17 +789,17 @@ export default function CheckoutPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setPaymentMethod("razorpay")}
-                      disabled
-                      aria-label="Online payment coming soon"
+                      onClick={() => setPaymentMethod("cashfree")}
+                      disabled={!onlineEnabled}
+                      aria-label={onlineEnabled ? (testPayment ? "UPI test payment" : "Pay with UPI") : "Online payment not configured"}
                       className={`min-h-[44px] px-3 py-2 rounded-xs border text-xs font-extrabold flex items-center justify-center gap-1.5 transition duration-fast ${
-                        paymentMethod === "razorpay"
+                        paymentMethod === "cashfree"
                           ? "border-brand-secondary bg-brand-secondary text-text-onSecondary"
                           : "border-border-muted bg-surface-base text-text-primary"
                       }`}
                     >
                       <CreditCard className="w-4 h-4" />
-                      <span>UPI / Card · Soon</span>
+                      <span>{onlineEnabled ? (testPayment ? "UPI · Test" : "UPI") : paymentSetup === "loading" ? "UPI · Checking…" : paymentSetup === "error" ? "UPI · Temporarily unavailable" : "UPI · Setup pending"}</span>
                     </button>
                   </div>
                 </div>
@@ -842,7 +855,9 @@ export default function CheckoutPage() {
                         <>
                           <Check className="w-5 h-5" />
                           <span>
-                            {user
+                            {paymentMethod === "cashfree"
+                              ? `Continue to UPI · ₹${grandTotal}`
+                              : user
                               ? `Pay ₹${grandTotal} (${
                                   paymentMethod === "cod"
                                     ? "Cash on Delivery"
@@ -884,6 +899,8 @@ export default function CheckoutPage() {
               <span>
                 {placingOrder
                   ? "Placing Order..."
+                  : paymentMethod === "cashfree"
+                  ? "Continue to UPI →"
                   : user
                   ? `Pay ₹${grandTotal} →`
                   : `Place COD Order →`}
