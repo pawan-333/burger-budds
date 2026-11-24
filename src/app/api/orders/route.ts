@@ -23,6 +23,7 @@ import {
 
 import { walletAvailable } from "@/lib/wallet";
 import { outletHours } from "@/lib/outlet-hours";
+import { cashfreeConfig, cashfreeEnabled } from "@/lib/cashfree";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
     if (PUBLIC_MERCHANT_ACCESS && req.nextUrl.searchParams.get("merchant") === "1") {
       const { data, error } = await getSupabaseAdminClient()!.from("orders").select("*, items:order_items(*), events:order_events(*)").order("placed_at", { ascending: false });
       if (error) return NextResponse.json({ error: "Unable to load orders." }, { status: 500 });
-      return NextResponse.json({ orders: (data || []).map(publicOrder) });
+      return NextResponse.json({ orders: (data || []).filter((order) => order.payment_method !== "cashfree" || order.payment_status === "paid").map(publicOrder) });
     }
     const user = await getVerifiedUser(req);
     if (req.nextUrl.searchParams.get("merchant") === "1") {
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
       if (!membership && !admin) return NextResponse.json({ error: "Store staff access required." }, { status: 403 });
       const { data, error } = await session.from("orders").select("*, items:order_items(*), events:order_events(*)").eq("outlet_id", outlet.id).order("placed_at", { ascending: false });
       if (error) return NextResponse.json({ error: "Unable to load orders." }, { status: 500 });
-      return NextResponse.json({ orders: (data || []).map(publicOrder) });
+      return NextResponse.json({ orders: (data || []).filter((order) => order.payment_method !== "cashfree" || order.payment_status === "paid").map(publicOrder) });
     }
     const guestHash = !user ? await getGuestOrderHash() : null;
     if (!user && !guestHash) return orderId ? NextResponse.json({ error: "Order not found" }, { status: 404 }) : NextResponse.json({ orders: [] });
@@ -96,6 +97,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    if (body.paymentMethod && !["cod", "cashfree", "razorpay"].includes(body.paymentMethod)) return NextResponse.json({ error: "Invalid payment method." }, { status: 400 });
+    if (body.paymentMethod === "cashfree" && !cashfreeEnabled()) return NextResponse.json({ error: "Online payment is not configured yet." }, { status: 503 });
     if (body.paymentMethod === "razorpay") {
       return NextResponse.json(
         { error: "Online payment is not available yet. Please choose Cash on Delivery." },
@@ -104,6 +107,7 @@ export async function POST(req: NextRequest) {
     }
     const idempotencyKey: string | undefined = body.idempotencyKey;
     const sb = getSupabaseAdminClient();
+    if (body.paymentMethod === "cashfree" && !sb) return NextResponse.json({ error: "Online payment requires the ordering database." }, { status: 503 });
     const verifiedUser = sb ? await getVerifiedUser() : null;
     const guestHash = sb && !verifiedUser ? await getGuestOrderHash(true) : null;
     if (!sb && process.env.NODE_ENV === "production") return NextResponse.json({ error: "Ordering service is not configured." }, { status: 503 });
@@ -224,6 +228,7 @@ export async function POST(req: NextRequest) {
       );
     }
     if (bill.itemTotal < Number(outlet.min_order)) return NextResponse.json({ error: `Minimum order value is ₹${outlet.min_order}.` }, { status: 400 });
+    if (body.paymentMethod === "cashfree" && bill.grandTotal < 1) return NextResponse.json({ error: "Online payment requires at least ₹1. Please choose Cash on Delivery for this order." }, { status: 400 });
 
     const orderId = sb ? randomUUID() : `ord-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const nextNumber = 2402 + store.orders.length;
@@ -274,7 +279,7 @@ export async function POST(req: NextRequest) {
     });
 
     const paymentMethod: PaymentMethod =
-      body.paymentMethod === "razorpay" ? "razorpay" : "cod";
+      body.paymentMethod === "cashfree" ? "cashfree" : "cod";
 
     const newOrder: OrderRecord = {
       id: orderId,
@@ -322,8 +327,8 @@ export async function POST(req: NextRequest) {
     };
 
     if (sb) {
-      const { data, error } = await sb.rpc("create_order_atomic", {
-        order_payload: { ...newOrder, guest_session_hash: guestHash },
+      const { data, error } = await sb.rpc(paymentMethod === "cashfree" ? "create_cashfree_order_atomic" : "create_order_atomic", {
+        order_payload: { ...newOrder, guest_session_hash: guestHash, ...(paymentMethod === "cashfree" ? { payment_environment: cashfreeConfig().mode } : {}) },
         request_key: idempotencyKey || randomUUID(),
       });
       if (error) throw error;

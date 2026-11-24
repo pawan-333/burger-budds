@@ -13,11 +13,11 @@ function load(file, modules={}) {
   return scope.exports;
 }
 const pricing=load('src/lib/pricing.ts');
-function route({walletError=true,balance=80,price=139,rpcError=false}={}) {
+function route({walletError=true,balance=80,price=139,rpcError=false,cashfreeReady=false}={}) {
   const walletCalls=[],writes=[];
-  const outlet={id:'test-outlet',slug:'test-outlet',name:'Test outlet',lat:26,lng:78,min_order:0,gst_percent:5,platform_fee:9,prep_time_min:25,delivery_radius_km:6,delivery_enabled:true,delivery_fee_rules:{base_fee:29,free_above:349,per_km_above_3km:0}};
+  const outlet={id:'test-outlet',slug:'test-outlet',name:'Test outlet',lat:26,lng:78,min_order:0,gst_percent:0,platform_fee:9,prep_time_min:25,delivery_radius_km:6,delivery_enabled:true,delivery_fee_rules:{base_fee:29,free_above:199,per_km_above_3km:0}};
   const item={id:'test-burger',name:'Test burger',price,is_available:true,diet:'veg',variants:[],addon_groups:[]};
-  const db={rpc:async(name,args)=>{assert.equal(name,'create_order_atomic');writes.push(args);return rpcError?{data:null,error:new Error('Database unavailable')}:{data:args.order_payload,error:null};}};
+  const db={rpc:async(name,args)=>{assert.equal(name,args.order_payload.payment_method==='cashfree'?'create_cashfree_order_atomic':'create_order_atomic');writes.push(args);return rpcError?{data:null,error:new Error('Database unavailable')}:{data:args.order_payload,error:null};}};
   const modules={
     'next/server':{NextResponse:{json:(data,options)=>({data,status:options?.status||200})}},
     crypto:require('node:crypto'),
@@ -27,6 +27,7 @@ function route({walletError=true,balance=80,price=139,rpcError=false}={}) {
     '@/lib/guest-session':{getGuestOrderHash:async()=>null,publicOrder:({guest_session_hash,...order})=>order},
     '@/lib/site-access':{PUBLIC_MERCHANT_ACCESS:false},
     '@/lib/outlet-hours':{outletHours:()=>({open:true})},
+    '@/lib/cashfree':{cashfreeEnabled:()=>cashfreeReady,cashfreeConfig:()=>({mode:'production'})},
     '@/lib/wallet':{walletAvailable:async id=>{walletCalls.push(id);if(walletError)throw Error('Wallet unavailable');return balance;}},
   };
   const order=load('src/app/api/orders/route.ts',modules);
@@ -35,14 +36,26 @@ function route({walletError=true,balance=80,price=139,rpcError=false}={}) {
   return {post:patch=>order.POST({json:async()=>({...body,...patch})}),quote:patch=>cart.POST({json:async()=>({...body,...patch})}),walletCalls,writes};
 }
 
-test('COD succeeds without wallet tables when coins are off, with correct 417 bill',async()=>{
+test('COD uses zero GST, the automatic discount and handling without requiring wallet tables',async()=>{
   const r=route();const result=await r.post();
   assert.equal(result.status,201);assert.equal(r.walletCalls.length,0);assert.equal(r.writes.length,1);
-  assert.equal(result.data.order.item_total,417);assert.equal(result.data.order.delivery_fee,0);assert.equal(result.data.order.wallet_used,0);assert.equal(result.data.order.grand_total,447);
+  assert.equal(result.data.order.item_total,417);assert.equal(result.data.order.tax,0);assert.equal(result.data.order.discount,80);
+  assert.equal(result.data.order.delivery_fee,0);assert.equal(result.data.order.platform_fee,9);assert.equal(result.data.order.wallet_used,0);assert.equal(result.data.order.grand_total,346);
 });
-test('below 349 remains flat 29 even beyond 3km',async()=>{
+test('Cashfree remains unavailable without server configuration and makes no writes',async()=>{
+  const r=route();const result=await r.post({paymentMethod:'cashfree'});
+  assert.equal(result.status,503);assert.equal(r.writes.length,0);
+});
+test('Cashfree uses server pricing and the dedicated pending-payment transaction',async()=>{
+  const r=route({cashfreeReady:true});const result=await r.post({paymentMethod:'cashfree',grandTotal:1});
+  assert.equal(result.status,201);assert.equal(result.data.order.payment_method,'cashfree');
+  assert.equal(r.writes[0].order_payload.grand_total,346);assert.equal(r.writes[0].order_payload.payment_status,'pending');
+  assert.equal(r.writes[0].order_payload.payment_environment,'production');
+});
+test('free delivery begins at 199 while the automatic discount starts at 299',async()=>{
   const r=route();const result=await r.post({items:[{itemId:'test-burger',qty:2}]});
-  assert.equal(result.status,201);assert.equal(result.data.order.delivery_fee,29);assert.equal(result.data.order.grand_total,330);
+  assert.equal(result.status,201);assert.equal(result.data.order.item_total,278);assert.equal(result.data.order.discount,0);
+  assert.equal(result.data.order.delivery_fee,0);assert.equal(result.data.order.grand_total,287);
 });
 test('exactly 349 receives free delivery',async()=>{
   const result=await route({price:349}).post({items:[{itemId:'test-burger',qty:1}]});
@@ -54,7 +67,7 @@ test('requested coins still fail closed when wallet verification is unavailable'
 });
 test('requested coins use verified balance rather than client-supplied balance',async()=>{
   const r=route({walletError:false});const result=await r.post({useWallet:true,walletBalance:99999});
-  assert.equal(result.status,201);assert.equal(result.data.order.wallet_used,80);assert.equal(result.data.order.grand_total,367);
+  assert.equal(result.status,201);assert.equal(result.data.order.wallet_used,69);assert.equal(result.data.order.grand_total,277);
 });
 test('takeaway without coins does not depend on the wallet',async()=>{
   const r=route();const result=await r.post({orderType:'takeaway',customerPhone:'9000000000',useWallet:undefined});

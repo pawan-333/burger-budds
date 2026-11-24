@@ -11,7 +11,7 @@ export type OrderStatus =
   | "rejected"
   | "cancelled";
 
-export type PaymentMethod = "razorpay" | "cod";
+export type PaymentMethod = "razorpay" | "cashfree" | "cod";
 export type StaffRole = "owner" | "manager" | "staff";
 
 export interface DeliveryFeeRules {
@@ -246,6 +246,7 @@ export interface OrderRecord {
   grand_total: number;
   coupon_code: string | null;
   payment_method: PaymentMethod;
+  payment_environment?: "sandbox" | "production" | null;
   payment_status: "pending" | "paid" | "refunded" | "failed";
   razorpay_order_id: string | null;
   special_instructions: string;
@@ -259,4 +260,29 @@ export interface OrderRecord {
   delivered_at: string | null;
   items: OrderItemRecord[];
   events: OrderEventRecord[];
+}
+
+export interface RegisteredRider {
+  id: string;
+  name: string;
+  phone: string;
+}
+
+export interface RiderDelivery {
+  id: string;
+  order_no: string;
+  customer_name: string;
+  customer_phone: string;
+  address: Pick<Address, "house" | "landmark" | "locality" | "city" | "lat" | "lng"> | null;
+  instructions: string;
+  cod_due: number;
+  payment_label: string;
+  items: { name: string; qty: number; variant: string | null }[];
+}
+
+export interface RiderDashboardData {
+  rider: { name: string; outlet_name: string };
+  active: RiderDelivery[];
+  active_limit_reached: boolean;
+  history: { id: string; order_no: string; delivered_at: string }[];
 }
