@@ -42,8 +42,6 @@ import { PUBLIC_MERCHANT_ACCESS } from "@/lib/site-access";
 import { verifyMerchantAccess } from "@/lib/merchant-access";
 import { outletHours } from "@/lib/outlet-hours";
 import { parseRiderDetails } from "@/lib/order-rider";
-import { collectionLabel } from "@/lib/payment-collection";
-import { RegisteredRiderPicker } from "@/components/merchant/RegisteredRiderPicker";
 
 export default function MerchantAppPage() {
   const { notifyRealtimeUpdate } = useApp();
@@ -108,7 +106,6 @@ export default function MerchantAppPage() {
   const [handoverOrderId, setHandoverOrderId] = useState<string | null>(null);
   const [riderName, setRiderName] = useState("");
   const [riderPhone, setRiderPhone] = useState("");
-  const [registeredRiderId, setRegisteredRiderId] = useState("");
   const [riderError, setRiderError] = useState<string | null>(null);
 
   const playKitchenBellTone = useCallback(() => {
@@ -276,7 +273,7 @@ export default function MerchantAppPage() {
   const handleOrderStatusChange = async (
     orderId: string,
     status: OrderStatus,
-    extra?: { prepTimeMin?: number; rejectReason?: string; riderName?: string; riderPhone?: string; riderId?: string }
+    extra?: { prepTimeMin?: number; rejectReason?: string; riderName?: string; riderPhone?: string }
   ) => {
     if (pendingOrderIds.current.has(orderId)) return false;
     pendingOrderIds.current.add(orderId);
@@ -304,7 +301,6 @@ export default function MerchantAppPage() {
           rejectReason: extra?.rejectReason,
           riderName: extra?.riderName,
           riderPhone: extra?.riderPhone,
-          riderId: extra?.riderId,
         }),
       });
       if (res.ok) {
@@ -330,12 +326,6 @@ export default function MerchantAppPage() {
   const handleRiderHandover = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!handoverOrderId) return;
-    if (registeredRiderId) {
-      setRiderError(null);
-      const saved = await handleOrderStatusChange(handoverOrderId, "out_for_delivery", { riderId: registeredRiderId });
-      if (saved) { setHandoverOrderId(null); setRegisteredRiderId(""); setRiderName(""); setRiderPhone(""); }
-      return;
-    }
     const rider = parseRiderDetails(riderName, riderPhone);
     if (!rider) { setRiderError("Enter the rider's name and a valid 10-digit mobile number."); return; }
     setRiderError(null);
@@ -516,10 +506,6 @@ export default function MerchantAppPage() {
       "Type",
       "Status",
       "Payment",
-      "Collection method",
-      "Collected at",
-      "Rider ID",
-      "Payment reference",
       "Grand Total (INR)",
     ];
     const rows = orders.map((o) => [
@@ -530,10 +516,6 @@ export default function MerchantAppPage() {
       o.order_type,
       o.status,
       o.payment_method,
-      collectionLabel(o),
-      o.collected_at || "",
-      o.collected_by || "",
-      o.collection_reference || "",
       o.grand_total,
     ]);
     const csvContent =
@@ -870,11 +852,9 @@ export default function MerchantAppPage() {
                               }`}
                             >
                               {ord.payment_method === "cod"
-                                ? `${ord.payment_status === "paid" ? "PAID" : "COD"} ₹${ord.grand_total}`
-                                : `${ord.payment_method === "cashfree" && ord.payment_environment !== "production" ? "TEST " : ""}${ord.payment_status === "paid" ? "PAID" : "PAYMENT PENDING"} ₹${ord.grand_total}`}
+                                ? `COD ₹${ord.grand_total}`
+                                : `PAID ₹${ord.grand_total}`}
                             </span>
-                            <p className="mt-1 text-xs font-bold">{ord.payment_environment === "sandbox" ? "TEST · " : ""}{collectionLabel(ord)}</p>
-                            {ord.collected_at && <p className="break-all text-xs text-text-muted">{new Date(ord.collected_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} · Rider: {ord.rider_name || ord.collected_by || "—"}{ord.collection_reference ? ` · Ref: ${ord.collection_reference}` : ""}</p>}
                             <p className="text-[11px] text-text-muted mt-1">
                               {new Date(ord.placed_at).toLocaleTimeString([], {
                                 hour: "2-digit",
@@ -1074,7 +1054,7 @@ export default function MerchantAppPage() {
                           <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
-                              onClick={() => { setHandoverOrderId(ord.id); setRegisteredRiderId(""); setRiderName(""); setRiderPhone(""); setRiderError(null); setOrderActionError(null); }}
+                              onClick={() => { setHandoverOrderId(ord.id); setRiderName(""); setRiderPhone(""); setRiderError(null); setOrderActionError(null); }}
                               aria-expanded={handoverOrderId === ord.id}
                               aria-controls={`rider-form-${ord.id}`}
                               className="min-h-[44px] rounded-xs bg-brand-secondary text-text-onSecondary font-extrabold text-xs flex items-center justify-center gap-1.5"
@@ -1096,8 +1076,6 @@ export default function MerchantAppPage() {
                           {handoverOrderId === ord.id && (
                             <form id={`rider-form-${ord.id}`} aria-label="Rider details" onSubmit={handleRiderHandover} className="p-3 rounded-xs border border-border-subtle bg-surface-raised space-y-3">
                               <p className="text-sm font-extrabold">Rider details</p>
-                              <RegisteredRiderPicker orderId={ord.id} value={registeredRiderId} onChange={setRegisteredRiderId} disabled={Boolean(pendingOrders[ord.id])} />
-                              {!registeredRiderId && <>
                               <div className="space-y-1">
                                 <label htmlFor={`rider-name-${ord.id}`} className="text-xs font-bold">Rider name</label>
                                 <input id={`rider-name-${ord.id}`} value={riderName} onChange={event => setRiderName(event.target.value)} required maxLength={80} autoComplete="off" disabled={pendingOrders[ord.id]} className="w-full min-h-[44px] px-3 rounded-xs border border-border-muted bg-surface-base text-sm" />
@@ -1106,7 +1084,6 @@ export default function MerchantAppPage() {
                                 <label htmlFor={`rider-phone-${ord.id}`} className="text-xs font-bold">Rider mobile number</label>
                                 <input id={`rider-phone-${ord.id}`} type="tel" inputMode="tel" value={riderPhone} onChange={event => setRiderPhone(event.target.value)} required maxLength={18} autoComplete="off" placeholder="10-digit mobile number" disabled={pendingOrders[ord.id]} className="w-full min-h-[44px] px-3 rounded-xs border border-border-muted bg-surface-base text-sm" />
                               </div>
-                              </>}
                               {(riderError || orderActionError) && <p role="alert" className="text-xs text-status-error">{riderError || orderActionError}</p>}
                               <div className="flex gap-2">
                                 <button type="submit" disabled={pendingOrders[ord.id]} className="flex-1 min-h-[44px] px-3 rounded-xs bg-brand-secondary text-text-onSecondary text-xs font-extrabold">{pendingOrders[ord.id] ? "Saving…" : "Save & Hand Over"}</button>
