@@ -78,6 +78,16 @@ export default function CheckoutPage() {
   );
   const [showAllCoupons, setShowAllCoupons] = useState<boolean>(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod");
+  const [onlineEnabled, setOnlineEnabled] = useState(false);
+  const [testPayment, setTestPayment] = useState(false);
+  const [paymentSetup, setPaymentSetup] = useState<"loading" | "ready" | "pending" | "error">("loading");
+  useEffect(() => {
+    let active = true;
+    fetch("/api/payments/cashfree", { cache: "no-store" })
+      .then((response) => { if (!response.ok) throw new Error(); return response.json(); }).then((data) => { if (active) { setOnlineEnabled(data.enabled === true); setTestPayment(data.mode === "sandbox"); setPaymentSetup(data.enabled === true ? "ready" : "pending"); } })
+      .catch(() => { if (active) setPaymentSetup("error"); });
+    return () => { active = false; };
+  }, []);
   const [pickupPhone, setPickupPhone] = useState("");
   const requestIdentity = useRef<{ signature: string; key: string } | null>(null);
   const billRequest = useRef(0);
@@ -180,7 +190,7 @@ export default function CheckoutPage() {
 
     setPlacingOrder(true);
     try {
-      const signature = JSON.stringify({ user: user?.id || "guest", cartItems, selectedAddress, orderType, couponCode, specialInstructions, pickupPhone });
+      const signature = JSON.stringify({ user: user?.id || "guest", outlet: activeOutlet.slug, cartItems, selectedAddress, orderType, couponCode, specialInstructions, pickupPhone, paymentMethod, useWallet });
       if (requestIdentity.current?.signature !== signature) requestIdentity.current = { signature, key: crypto.randomUUID() };
       const idempotencyKey = requestIdentity.current.key;
       const res = await fetch("/api/orders", {
@@ -217,9 +227,9 @@ export default function CheckoutPage() {
       }
 
       // Broadcast to Merchant App (/merchant) in real time!
-      notifyRealtimeUpdate("order_created", data.order);
+      if (paymentMethod === "cod") notifyRealtimeUpdate("order_created", data.order);
       clearCart();
-      router.push(`/track/${data.order.id}`);
+      router.push(`/track/${data.order.id}${paymentMethod === "cashfree" ? "?pay=1" : ""}`);
     } catch {
       setOrderError("Network error while placing your order. Please retry.");
       setPlacingOrder(false);
@@ -779,17 +789,17 @@ export default function CheckoutPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setPaymentMethod("razorpay")}
-                      disabled
-                      aria-label="Online payment coming soon"
+                      onClick={() => setPaymentMethod("cashfree")}
+                      disabled={!onlineEnabled}
+                      aria-label={onlineEnabled ? (testPayment ? "UPI test payment" : "Pay with UPI") : "Online payment not configured"}
                       className={`min-h-[44px] px-3 py-2 rounded-xs border text-xs font-extrabold flex items-center justify-center gap-1.5 transition duration-fast ${
-                        paymentMethod === "razorpay"
+                        paymentMethod === "cashfree"
                           ? "border-brand-secondary bg-brand-secondary text-text-onSecondary"
                           : "border-border-muted bg-surface-base text-text-primary"
                       }`}
                     >
                       <CreditCard className="w-4 h-4" />
-                      <span>UPI / Card · Soon</span>
+                      <span>{onlineEnabled ? (testPayment ? "UPI · Test" : "UPI") : paymentSetup === "loading" ? "UPI · Checking…" : paymentSetup === "error" ? "UPI · Temporarily unavailable" : "UPI · Setup pending"}</span>
                     </button>
                   </div>
                 </div>
@@ -845,7 +855,9 @@ export default function CheckoutPage() {
                         <>
                           <Check className="w-5 h-5" />
                           <span>
-                            {user
+                            {paymentMethod === "cashfree"
+                              ? `Continue to UPI · ₹${grandTotal}`
+                              : user
                               ? `Pay ₹${grandTotal} (${
                                   paymentMethod === "cod"
                                     ? "Cash on Delivery"
@@ -887,6 +899,8 @@ export default function CheckoutPage() {
               <span>
                 {placingOrder
                   ? "Placing Order..."
+                  : paymentMethod === "cashfree"
+                  ? "Continue to UPI →"
                   : user
                   ? `Pay ₹${grandTotal} →`
                   : `Place COD Order →`}
